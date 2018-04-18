@@ -65,6 +65,15 @@ struct DistorsioData
     QVector <double> dy;
 };
 
+
+enum X_AXIS_DIRECTION
+{
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT
+};
+
 class MLSTask : public QObject
 {
     Q_OBJECT
@@ -81,7 +90,7 @@ class MLSTask : public QObject
 
 public:
 
-    explicit MLSTask(QObject *parent = nullptr);
+    explicit MLSTask(QObject* parent = nullptr);
     void readModelData(const QString& filename, bool skipFirstRow);
     void readRealData(const QString& filename, bool skipFirstRow);
     void calculate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
@@ -91,13 +100,15 @@ public:
     void setMeasureTheshold(quint32 th){thershold = th;}
     void findDistorsio(int nPow);
     void saveDistorsio();
+    void saveShifts(const QString& prefix);
     void includeDistorsio();
     QList <double> getDistX() const {return xDistV;}
     QList <double> getDistY() const {return yDistV;}
+    void setAxisDirection(X_AXIS_DIRECTION dir) {d = dir;}
     void clearAll(){frame.clear();xDistV.clear();yDistV.clear();distData.x.clear();distData.y.clear();distData.dx.clear();distData.dy.clear();}
 
 private:
-
+   void includeAxisDirection (double MStand[3][3], double modifyMStand[3][3], X_AXIS_DIRECTION d = X_AXIS_DIRECTION::UP);
    void calculatePrivate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors, const RotateAngles& rotAngles, QVector<QPointF>& frame);
    void FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QVector <double>& dx, QVector <double>& dy);
    void calculateXY(double Mstand[3][3], double collimator[3], double focus, double& X, double& Y);
@@ -122,7 +133,7 @@ private:
    DistorsioData distData;
    QList <double> xDistV;
    QList <double> yDistV;
-
+   X_AXIS_DIRECTION d = UP;
    static constexpr const double deltaAngle = 1. / 60. / 60. * degreesToRad * 10;
    static constexpr const double deltaFocus = 0.0001;
    static constexpr const qint32 maxDer = 10000;

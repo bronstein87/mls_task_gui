@@ -388,12 +388,12 @@ void multMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3
     double buf;
     int i,j,k;
 
-    for(i = 0;i < 3;i ++)
+    for(i = 0; i < 3; i++)
     {
-        for(j = 0;j < 3;j ++)
+        for(j = 0; j < 3; j++)
         {
             buf = 0;
-            for (k = 0;k < 3;k ++)
+            for (k = 0; k < 3; k++)
             {
                 buf = buf + Matr1[i][k] * Matr2[k][j];
             }
@@ -855,7 +855,7 @@ double getDet(int nElem, double** DRVM)
         }
     }
     int* P = new int [nElem + 1];
-    int status = LUPDecompose(tmpM, nElem, 1e-10, P);
+    int status = LUPDecompose(tmpM, nElem, 1e-13, P);
     if (!status) throw std::logic_error("ERROR LUPDecompose");
     double DET = LUPDeterminant(tmpM, P, nElem);
     for (int j = 0; j < nElem; j++)
@@ -930,7 +930,11 @@ double calculateDistorsio(double point_c, double coord_a, double coord_b,  QList
             +distorsio_coef[17] * pow(coord_a,3) * pow(coord_b,2)
             +distorsio_coef[18] * pow(coord_a,2) * pow(coord_b,3)
             +distorsio_coef[19] * coord_a * pow(coord_b,4)
-            +distorsio_coef[20] * pow(coord_b,5);
+            +distorsio_coef[20] * pow(coord_b,5);// +
+//            +distorsio_coef[21]*x_6+distorsio_coef[22]*x_5*y[i]+distorsio_coef[23]*x_4*y_2+distorsio_coef[24]*x_3*y_3+distorsio_coef[25]*x_2*y_4+distorsio_coef[26]*x[i]*y_5+distorsio_coef[27]*y_6
+//            +distorsio_coef[28]*x_7+distorsio_coef[29]*x_6*y[i]+distorsio_coef[30]*x_5*y_2+distorsio_coef[31]*x_4*y_3+distorsio_coef[32]*x_3*y_4+distorsio_coef[33]*x_2*y_5+distorsio_coef[34]*x[i]*y_6+distorsio_coef[35]*y_7
+//            +distorsio_coef[36]*x_8+distorsio_coef[37]*x_7*y[i]+distorsio_coef[38]*x_6*y_2+distorsio_coef[39]*x_5*y_3+distorsio_coef[40]*x_4*y_4+distorsio_coef[41]*x_3*y_5+distorsio_coef[42]*x_2*y_6+distorsio_coef[43]*x[i]*y_7+distorsio_coef[44]*y_8
+//            +distorsio_coef[45]*x_9+distorsio_coef[46]*x_8*y[i]+distorsio_coef[47]*x_7*y_2+distorsio_coef[48]*x_6*y_3+distorsio_coef[49]*x_5*y_4+distorsio_coef[50]*x_4*y_5+distorsio_coef[51]*x_3*y_6+distorsio_coef[52]*x_2*y_7+distorsio_coef[53]*x[i]*y_8+distorsio_coef[54]*y_9;;
 
     return point_c - delta;
 }

@@ -65,10 +65,11 @@ void MLSTask::readRealData(const QString& filename, bool skipFirstRow)
                         QPointF((list[0].toDouble() - frameX) * pixelSize,
                         (list[1].toDouble() - frameY) * pixelSize));
             double alpha = list[2].toDouble();
-            alpha = 95 + alpha;
+            alpha = 95.0 + alpha;//95.049
             alpha = -alpha;
             double azimut = list[3].toDouble();
-            //azimut += 90;
+//            if (frameX != frameY)
+//                azimut += 180.0;
             rotAngles.alphaRotates.append(alpha);
             rotAngles.phiRotates.append(azimut);
         }
@@ -91,6 +92,44 @@ void MLSTask::calculateXY(double Mstand[3][3], double collimator[3], double focu
     Y = -focus * LMN[1] / LMN[2];
 }
 
+
+void MLSTask::includeAxisDirection (double MStand[3][3], double modifyMStand[3][3], X_AXIS_DIRECTION d)
+{
+    double m[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
+    switch (d)
+    {
+    case UP:
+    {
+        m[0][0] = 1;
+        m[1][1] = 1;
+        m[2][2] = 1;
+        break;
+    }
+    case DOWN:
+    {
+        m[0][0] = -1;
+        m[1][1] = -1;
+        m[2][2] = 1;
+        break;
+    }
+    case LEFT:
+    {
+        m[0][1] = -1;
+        m[1][0] = 1;
+        m[2][2] = 1;
+        break;
+    }
+    case RIGHT:
+    {
+        m[0][1] = 1;
+        m[1][0] = -1;
+        m[2][2] = 1;
+        break;
+    }
+
+    }
+    BOKZMath::multMatrix(m, MStand, modifyMStand);
+}
 
 double MLSTask::calculate11El(StandAngles ang, double alpha, double phi)
 {
@@ -194,26 +233,7 @@ void MLSTask::calculateMatrix(StandAngles ang, double alpha, double phi, double 
 
 void MLSTask::fitFocusByLines(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors)
 {
-    //        QVector <double> focs;
-    //        RotateAngles angs;
-    //        QVector<QPointF> smallFrame;
-    //        int curPos = 0;
-    //        for(int i = 0; i < 39; i++)
-    //        {
-    //            for(curPos = i * 100; curPos < i * 100 + 100; curPos++)
-    //            {
-    //                angs.alphaRotates.append(rotAngles.alphaRotates[curPos]);
-    //                angs.phiRotates.append(rotAngles.phiRotates[curPos]);
-    //                smallFrame.append(QPointF(frame[curPos].x(),frame[curPos].y()));
-    //            }
 
-    //            calculatePrivate(derivativeFlags,results,errors, angs, smallFrame);
-    //            focs.append(results.foc);
-    //            angs.alphaRotates.clear();
-    //            angs.phiRotates.clear();
-    //            smallFrame.clear();
-    //        }
-    //       results.foc = calculateMean(focs.begin(), focs.end(), 0.0);
     QVector <double> focs;
     bool lastLine = false;
     RotateAngles angs;
@@ -251,6 +271,7 @@ void MLSTask::calculate(const QBitArray& derivativeFlags, Results& results, Resu
 }
 void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors, const RotateAngles& rotAngles, QVector<QPointF>& frame)
 {
+    double MstandTemp[3][3];
     double Mstand[3][3];
     double MstandDer[3][3];
     StandAngles ang;
@@ -263,19 +284,17 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     ang.alphaTwoOY = results.alphaTwoOY * degreesToRad;
     ang.alphaTwoOX = results.alphaTwoOX * degreesToRad;
 
-
     double collimator[3] {-cos(ang.lambdaOY), 0, -sin(ang.lambdaOY)};
     double collimatorDer[3];
 
     QVector <double> Xst;
     QVector <double> Yst;
-    Xst.clear();
-    Yst.clear();
     for (int i = 0; i < frame.size(); i++)
     {
         Xst.append(frame[i].x());
         Yst.append(frame[i].y());
     }
+
     double DFR[maxDer];
     double **DRV = new double* [maxDer];
     double **DRVM = new double* [maxParams];
@@ -312,10 +331,17 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
 
             double alpha = rotAngles.alphaRotates[j] * degreesToRad;
             double phi = rotAngles.phiRotates[j] * degreesToRad;
-            calculateMatrix(ang, alpha, phi, Mstand);
+            calculateMatrix(ang, alpha, phi, MstandTemp);
+            includeAxisDirection(MstandTemp, Mstand, d);
             calculateXY(Mstand, collimator, focus, X, Y);
+
             DFR[k] = (double)(Xst[j] - X);
             DFR[l] = (double)(Yst[j] - Y);
+
+//            if (fabs(Xst[j] - X) >0.6 || fabs(Yst[j] - Y) > 0.6)
+//            {
+//                qDebug() << "qq";
+//            }
 
             if (derivativeFlags.at(DERIVATIVES::LAMBDA_OY))
             {
@@ -324,10 +350,12 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
                 collimatorDer[0] = -cos(angDer.lambdaOY);
                 collimatorDer[1] = 0;
                 collimatorDer[2] = -sin(angDer.lambdaOY);
-                calculateMatrix(angDer, alpha, phi, MstandDer);
+                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimatorDer, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
 
@@ -335,30 +363,36 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
             {
                 angDer = ang;
                 angDer.lambdaOX += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandDer);
+                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
             if (derivativeFlags.at(DERIVATIVES::ALPHA_TWO_OY))
             {
                 angDer = ang;
                 angDer.alphaTwoOY += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandDer);
+                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
             if (derivativeFlags.at(DERIVATIVES::ALPHA_TWO_OX))
             {
                 angDer = ang;
                 angDer.alphaTwoOX += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandDer);
+                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
 
@@ -366,20 +400,24 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
             {
                 angDer = ang;
                 angDer.gammaOY += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandDer);
+                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
             if (derivativeFlags.at(DERIVATIVES::GAMMA_OX))
             {
                 angDer = ang;
                 angDer.gammaOX += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandDer);
+                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
 
             }
             if (derivativeFlags.at(DERIVATIVES::FOCUS))
@@ -387,6 +425,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
                 calculateXY(Mstand, collimator, focus + deltaFocus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaFocus;
                 DRV[l][numP++] = (Yd - Y) / deltaFocus;
+                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1] <<"end\n";
             }
 
             mxy += DFR[k] * DFR[k] + DFR[l] * DFR[l];
@@ -489,6 +528,8 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     }
     while ((fabs(mxy - mxy_pr) > maxError)
            && (clk < maxIterations));
+
+
 
     results.foc = focus;
     results.alphaTwoOX = ang.alphaTwoOX * radToDegrees;
@@ -601,6 +642,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     distData.y.clear();
     distData.dx.clear();
     distData.dy.clear();
+    qDebug() << "рассогласования";
     for (int i = 0; i < Nst; i++)
     {
         int deltaStep = i * 2;
@@ -608,6 +650,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
         distData.y.append(Yst[i]);
         distData.dx.append(DFR[deltaStep]);
         distData.dy.append(DFR[deltaStep + 1]);
+        qDebug() << "X" << DFR[deltaStep] << "Y" << DFR[deltaStep + 1];
     }
 
     for (int count = 0; count < Nst; count++)
@@ -644,6 +687,22 @@ void MLSTask::saveDistorsio()
     }
 }
 
+void MLSTask::saveShifts(const QString& prefix)
+{
+    QFile coords(prefix + "coodinates" + ".txt");
+    if (coords.open(QIODevice::WriteOnly))
+    {
+        QTextStream out(&coords);
+        for (int i = 0; i < distData.x.size(); i++)
+        {
+            out << QString("%1  %2  %3  %4\n")
+                   .arg(distData.x[i])
+                   .arg(distData.y[i])
+                   .arg(distData.dx[i])
+                   .arg(distData.dy[i]);
+        }
+    }
+}
 
 void MLSTask::includeDistorsio()
 {

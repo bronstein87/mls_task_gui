@@ -40,6 +40,7 @@ private:
     void printErrors(ResultErrors& err);
     void saveErrors(ResultErrors& err);
     void saveResults(Results& res);
+
     QBitArray setFlags();
     Results setFirstApprox();
     Ui::MainWindow *ui;

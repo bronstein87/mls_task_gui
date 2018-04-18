@@ -8,7 +8,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
     settings = new QSettings(QDir::currentPath() + "/" + "config.ini", QSettings::IniFormat, this);
     loadSettings();
-    ui->powComboBox->addItems(QStringList {"3", "5", "7"});
+    ui->powComboBox->addItems(QStringList {"3", "5"});
+    ui->formatTypeComboBox->addItems(QStringList{"Формат №1", "Формат №2(Никитин)"});
 }
 
 MainWindow::~MainWindow()
@@ -69,7 +70,8 @@ void MainWindow::loadSettings()
 void MainWindow::on_pushButton_clicked()
 {
     QString fileName = QFileDialog::getOpenFileName(this,
-                                                    tr("Open modeling file"), QDir::currentPath(), tr("*.txt"));
+                                                    tr("Open modeling file"),
+                                                    QDir::currentPath(), tr("*.txt"));
     QDir::setCurrent(fileName);
     ui->pathLineEdit->setText(fileName);
 }
@@ -207,6 +209,23 @@ void MainWindow::on_pushButton_2_clicked()
             task.readRealData(ui->pathLineEdit->text(), true);
         }
 
+        if (ui->upRadioButton->isChecked())
+        {
+            task.setAxisDirection(UP);
+        }
+        else if (ui->downRadioButton->isChecked())
+        {
+            task.setAxisDirection(DOWN);
+        }
+        else if (ui->leftRadioButton->isChecked())
+        {
+            task.setAxisDirection(LEFT);
+        }
+        else if (ui->rightRadioButton->isChecked())
+        {
+            task.setAxisDirection(RIGHT);
+        }
+
         auto flags = setFlags();
         auto results = setFirstApprox();
         ResultErrors errors;
@@ -214,11 +233,11 @@ void MainWindow::on_pushButton_2_clicked()
                 && flags.at(DERIVATIVES::FOCUS))
         {
             task.fitFocusByLines(flags, results, errors);
-            qDebug() <<"Фокус по линиям" << results.foc;
             flags.setBit(DERIVATIVES::FOCUS, false);
         }
 
         task.calculate(flags, results, errors);
+        task.saveShifts("before_dist");
         if (ui->distRadioButton->isChecked())
         {
             quint32 pow = ui->powComboBox->currentText().toInt();
@@ -227,6 +246,7 @@ void MainWindow::on_pushButton_2_clicked()
             task.includeDistorsio();
             flags.setBit(DERIVATIVES::FOCUS, false);
             task.calculate(flags, results, errors);
+            task.saveShifts("after_dist");
         }
         printResults(results);
         printErrors(errors);
@@ -236,7 +256,6 @@ void MainWindow::on_pushButton_2_clicked()
     catch (std::exception& e)
     {
         ui->textEdit->append(QString(e.what()) + "\n");
-        //QMessageBox::information(nullptr, tr("Ошибка"), tr(e.what()));
     }
 
 }
@@ -272,36 +291,36 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
         return;
     }
 
-//    auto parse = [this](auto& v, const auto& pos) {
-//        for (const auto& i : v)
-//        {
-//            QFile file(i);
-//            if (file.open(QIODevice::ReadOnly))
-//            {
-//                QTextStream in(&file);
-//                QString line;
-//                while (in.readLineInto(&line))
-//                {
-//                    QStringList list = line.split("\t", QString::SplitBehavior::SkipEmptyParts);
-//                    v.append(list);
-//                }
-//            }
-//            else
-//            {
-//                ui->textEdit->append("Не удалось открыть файл" + i + "\n");
-//                return;
-//            }
-//            file.close();
-//        }
-//        for (int i = 0; i < v.size(); i++)
-//        {
+    //    auto parse = [this](auto& v, const auto& pos) {
+    //        for (const auto& i : v)
+    //        {
+    //            QFile file(i);
+    //            if (file.open(QIODevice::ReadOnly))
+    //            {
+    //                QTextStream in(&file);
+    //                QString line;
+    //                while (in.readLineInto(&line))
+    //                {
+    //                    QStringList list = line.split("\t", QString::SplitBehavior::SkipEmptyParts);
+    //                    v.append(list);
+    //                }
+    //            }
+    //            else
+    //            {
+    //                ui->textEdit->append("Не удалось открыть файл" + i + "\n");
+    //                return;
+    //            }
+    //            file.close();
+    //        }
+    //        for (int i = 0; i < v.size(); i++)
+    //        {
 
-//            quint32 pos = v[i][pos].indexOf(QRegExp("\\\\(?:(?!\\\\))\\d\\d\\."));
-//            v[i][pos] = v[i][pos].mid(pos);
-//        }
-//    };
+    //            quint32 pos = v[i][pos].indexOf(QRegExp("\\\\(?:(?!\\\\))\\d\\d\\."));
+    //            v[i][pos] = v[i][pos].mid(pos);
+    //        }
+    //    };
     QVector <QStringList> coordFilesData;
-   // parse(coordFilesData, 13);
+    // parse(coordFilesData, 13);
     for (const auto& i : coordFiles)
     {
         QFile file(i);
@@ -364,6 +383,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     sort(coordFilesData.begin(), coordFilesData.end(), [](auto& a, auto& b){return a[13] < b[13];});
     sort(anglesFilesData.begin(), anglesFilesData.end(), [](auto& a, auto& b){return a[1] < b[1];});
 
+    QVector <QStringList> resFilesData;
     quint32 pos = 0;
     for (int i = 0; i < coordFilesData.size(); i++)
     {
@@ -373,8 +393,11 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
             {
                 anglesFilesData[j][2].replace(",",".");
                 anglesFilesData[j][3].replace(",",".");
-                coordFilesData[i].append(anglesFilesData[j][2]);
-                coordFilesData[i].append(anglesFilesData[j][3]);
+                resFilesData.append(coordFilesData[i]);
+                resFilesData.last().append(anglesFilesData[j][2]);
+                resFilesData.last().append(anglesFilesData[j][3]);
+                //coordFilesData[i].append(anglesFilesData[j][2]);
+                //coordFilesData[i].append(anglesFilesData[j][3]);
                 pos = j;
                 break;
             }
@@ -387,12 +410,26 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     if (file.open(QIODevice::WriteOnly))
     {
         QTextStream out(&file);
-        out << "X\t" << "Y\t" << "Alpha\t" << "Azimut\n";
-        for (const auto& i : coordFilesData)
+        if (ui->formatTypeComboBox->currentIndex() == 0)
         {
-            out << QString("%1\t%2\t%3\t%4\n")
-                   .arg(i[1]).arg(i[2])
-                    .arg(i[14]).arg(i[15]);
+            out << "X\t" << "Y\t" << "Alpha\t" << "Azimut\n";
+            for (const auto& i : resFilesData)
+            {
+                out << QString("%1\t%2\t%3\t%4\n")
+                       .arg(i[1]).arg(i[2])
+                        .arg(i[14]).arg(i[15]);
+            }
+        }
+        else
+        {
+            out << "Data	Time	File	X	Y	I	N	maxI	Aldeg	Gm deg\n";
+            for (const auto& i : resFilesData)
+            {
+                out << QString("%1\t%2\t%3\t%4\t%5\t%6\t%7\t%8\t%9\t%10\n")
+                       .arg("123").arg("123").arg("123").arg(i[1]).arg(i[2])
+                        .arg("123").arg("123").arg("123")
+                        .arg(i[14]).arg(i[15]);
+            }
         }
     }
 }
