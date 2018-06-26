@@ -64,7 +64,7 @@ double calculateJulianDate(const QDateTime& dateTime) noexcept;
 
 double calculateJulianCenturies(const QDateTime& dateTime) noexcept;
 
-void multMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept;
+void multiplyMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept;
 
 double calculateDatePr(const QDateTime& dateTime, int timePr) noexcept;
 
@@ -95,7 +95,7 @@ void quatToEkvA(const double Quat[4], double EkvA[3]) noexcept;
 
 double acosm(double xf) noexcept;
 
-void multMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept;
+void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept;
 
 void getAngularDisplacementFromOrientMatr(const double M_ornt_pr[3][3],const double M_ornt[3][3], double Wop [3]) noexcept;
 
@@ -125,6 +125,8 @@ void calculateAlphaDelta(double l, double m, double n, double& alpha, double& de
 
 QVector <quint32> firstMinDistanceTable(RecognizedInfo** distMatrix, quint32 countOfMins, quint32 objectIndex, quint32 size);
 
+void calculateLMNImage(double x, double y, double focus, double lmn[3]);
+
 double sqrtm(double x);
 
 int LUPDecompose(double **A, int N, double Tol, int *P);
@@ -140,6 +142,12 @@ int minorM(int z,int x,int N, double** A,double** C);
 double calculateDistorsio(double point_c, double coord_a, double coord_b, QList<double> &distorsio_coef);
 
 double calculateDistorsioDelta(double coord_a, double coord_b,  QList <double>& distorsio_coef);
+
+void rotateOY(double alpha, double mIn[3][3], double mOut[3][3]);
+
+void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3]);
+
+void rotateOX(double alpha, double mIn[3][3], double mOut[3][3]);
 
 
 template <class InputIterator, class Value, class UnaryOperation>

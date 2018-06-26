@@ -65,11 +65,11 @@ void MLSTask::readRealData(const QString& filename, bool skipFirstRow)
                         QPointF((list[0].toDouble() - frameX) * pixelSize,
                         (list[1].toDouble() - frameY) * pixelSize));
             double alpha = list[2].toDouble();
-            alpha = 95.0 + alpha;//95.049
+            alpha = 95.0 + alpha;
             alpha = -alpha;
             double azimut = list[3].toDouble();
-//            if (frameX != frameY)
-//                azimut += 180.0;
+            //            if (frameX != frameY)
+            //                azimut += 180.0;
             rotAngles.alphaRotates.append(alpha);
             rotAngles.phiRotates.append(azimut);
         }
@@ -128,7 +128,7 @@ void MLSTask::includeAxisDirection (double MStand[3][3], double modifyMStand[3][
     }
 
     }
-    BOKZMath::multMatrix(m, MStand, modifyMStand);
+    BOKZMath::multiplyMatrix(m, MStand, modifyMStand);
 }
 
 double MLSTask::calculate11El(StandAngles ang, double alpha, double phi)
@@ -231,6 +231,44 @@ void MLSTask::calculateMatrix(StandAngles ang, double alpha, double phi, double 
     Mstand[2][2] = calculate33El(ang, alpha, phi);
 }
 
+void MLSTask::calculateMatrixDynamicaly(StandAngles ang, double alpha, double phi, double Mstand[3][3])
+{
+    double Minit[3][3];
+    Minit[0][0] = 1; Minit[0][1] = 0; Minit[0][2] = 0;
+    Minit[1][0] = 0; Minit[1][1] = 1; Minit[1][2] = 0;
+    Minit[2][0] = 0; Minit[2][1] = 0; Minit[2][2] = 1;
+
+    // матрица СК2-ВСК
+    double MgammaOZ[3][3];
+    rotateOZ(ang.gammaOZ, Minit, MgammaOZ);
+    double MgammaOY[3][3];
+    rotateOY(ang.gammaOY, MgammaOZ, MgammaOY);
+    double MgammaOX[3][3];
+    rotateOX(ang.gammaOX, MgammaOY, MgammaOX);
+
+    // матрица ССК-СК1
+   // double MfirstPlatfOX[3][3];
+   //rotateOX(ang.lambdaOX, Minit, MfirstPlatfOX);
+    double Mx[3][3];
+    rotateOZ(alpha, Minit, Mx);
+
+    // матрица СК2-ВСК
+    double MsecondPlatfOY[3][3];
+    rotateOY(ang.alphaTwoOY, Minit, MsecondPlatfOY);
+    double MsecondPlatfOX[3][3];
+    rotateOX(ang.alphaTwoOX, MsecondPlatfOY, MsecondPlatfOX);
+
+    double Mtemp[3][3];
+    double Mi[3][3]  = {{0, 0, 1}, {0, -1, 0}, {1, 0, 0}};
+    multiplyMatrix(Mi, MsecondPlatfOX, Mtemp);
+    double Mc [3][3];
+    rotateOZ(phi, Mtemp, Mc);
+    // итоговое перемножение
+    multiplyMatrix(Mc ,Mx, Mtemp);
+    multiplyMatrix(MgammaOX, Mtemp, Mstand);
+
+}
+
 void MLSTask::fitFocusByLines(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors)
 {
 
@@ -277,6 +315,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     StandAngles ang;
     StandAngles angDer;
 
+    ang.gammaOZ = results.gammaOZ * degreesToRad;
     ang.gammaOY = results.gammaOY * degreesToRad;
     ang.gammaOX = results.gammaOX * degreesToRad;
     ang.lambdaOY = results.lambdaOY * degreesToRad;
@@ -284,7 +323,8 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     ang.alphaTwoOY = results.alphaTwoOY * degreesToRad;
     ang.alphaTwoOX = results.alphaTwoOX * degreesToRad;
 
-    double collimator[3] {-cos(ang.lambdaOY), 0, -sin(ang.lambdaOY)};
+
+    double collimator[3] {-(cos(ang.lambdaOY) * cos(ang.lambdaOX)), -(cos(ang.lambdaOY) * sin(ang.lambdaOX)), -sin(ang.lambdaOY)};
     double collimatorDer[3];
 
     QVector <double> Xst;
@@ -331,31 +371,26 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
 
             double alpha = rotAngles.alphaRotates[j] * degreesToRad;
             double phi = rotAngles.phiRotates[j] * degreesToRad;
-            calculateMatrix(ang, alpha, phi, MstandTemp);
+            calculateMatrixDynamicaly(ang, alpha, phi, MstandTemp);
             includeAxisDirection(MstandTemp, Mstand, d);
             calculateXY(Mstand, collimator, focus, X, Y);
 
             DFR[k] = (double)(Xst[j] - X);
             DFR[l] = (double)(Yst[j] - Y);
 
-//            if (fabs(Xst[j] - X) >0.6 || fabs(Yst[j] - Y) > 0.6)
-//            {
-//                qDebug() << "qq";
-//            }
 
             if (derivativeFlags.at(DERIVATIVES::LAMBDA_OY))
             {
                 angDer = ang;
                 angDer.lambdaOY += deltaAngle;
-                collimatorDer[0] = -cos(angDer.lambdaOY);
-                collimatorDer[1] = 0;
+                collimatorDer[0] = -(cos(angDer.lambdaOY) * cos(angDer.lambdaOX));
+                collimatorDer[1] = -(cos(angDer.lambdaOY) * sin(angDer.lambdaOX));
                 collimatorDer[2] = -sin(angDer.lambdaOY);
-                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
                 includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimatorDer, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
 
@@ -363,61 +398,70 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
             {
                 angDer = ang;
                 angDer.lambdaOX += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                collimatorDer[0] = -(cos(angDer.lambdaOY) * cos(angDer.lambdaOX));
+                collimatorDer[1] = -(cos(angDer.lambdaOY) * sin(angDer.lambdaOX));
+                collimatorDer[2] = -sin(angDer.lambdaOY);
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
                 includeAxisDirection(MstandTemp, MstandDer, d);
-                calculateXY(MstandDer, collimator, focus, Xd, Yd);
+                calculateXY(MstandDer, collimatorDer, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
             if (derivativeFlags.at(DERIVATIVES::ALPHA_TWO_OY))
             {
                 angDer = ang;
                 angDer.alphaTwoOY += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
                 includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
             if (derivativeFlags.at(DERIVATIVES::ALPHA_TWO_OX))
             {
                 angDer = ang;
                 angDer.alphaTwoOX += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
                 includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
 
+            if (derivativeFlags.at(DERIVATIVES::GAMMA_OZ))
+            {
+                angDer = ang;
+                angDer.gammaOZ += deltaAngle;
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
+                includeAxisDirection(MstandTemp, MstandDer, d);
+                calculateXY(MstandDer, collimator, focus, Xd, Yd);
+                DRV[k][numP] = (Xd - X) / deltaAngle;
+                DRV[l][numP++] = (Yd - Y) / deltaAngle;
+            }
 
             if (derivativeFlags.at(DERIVATIVES::GAMMA_OY))
             {
                 angDer = ang;
                 angDer.gammaOY += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
                 includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
             }
+
 
             if (derivativeFlags.at(DERIVATIVES::GAMMA_OX))
             {
                 angDer = ang;
                 angDer.gammaOX += deltaAngle;
-                calculateMatrix(angDer, alpha, phi, MstandTemp);
+                calculateMatrixDynamicaly(angDer, alpha, phi, MstandTemp);
                 includeAxisDirection(MstandTemp, MstandDer, d);
                 calculateXY(MstandDer, collimator, focus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaAngle;
                 DRV[l][numP++] = (Yd - Y) / deltaAngle;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1];
 
             }
             if (derivativeFlags.at(DERIVATIVES::FOCUS))
@@ -425,14 +469,12 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
                 calculateXY(Mstand, collimator, focus + deltaFocus, Xd, Yd);
                 DRV[k][numP] = (Xd - X) / deltaFocus;
                 DRV[l][numP++] = (Yd - Y) / deltaFocus;
-                //qDebug() << DRV[k][numP - 1] << DRV[l][numP - 1] <<"end\n";
             }
 
             mxy += DFR[k] * DFR[k] + DFR[l] * DFR[l];
             mx  += DFR[k] * DFR[k];
             my  += DFR[l] * DFR[l];
         }
-
         mxy = mxy / (double)(2 * Nst - numP);  mxy = sqrtm(mxy);
         mx  = mx / (double)(Nst - numP/2.);    mx  = sqrtm(mx);
         my  = my / (double)(Nst - numP/2.);    my  = sqrtm(my);
@@ -448,11 +490,18 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
                 }
             }
         }
-        if (numP == 1)
+        if (numP == 0)
+        {
+            return;
+        }
+        else if (numP == 1)
+        {
             DRVM_1[0][0] = 1 / DRVM[0][0];
+        }
         else
+        {
             Matrix_1MM(DRVM, DRVM_1, numP); // вычисление обратной матрицы
-
+        }
         for (int i = 0; i < numP; i++)
         { // умножение транспонированной на вектор расхождений координат
             DRVH[i] = 0.;             //DRVH=(DRV)^T*DIF
@@ -492,6 +541,11 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
             ang.alphaTwoOX += ANGD[numP++];
         }
 
+        if (derivativeFlags.at(DERIVATIVES::GAMMA_OZ))
+        {
+            ang.gammaOZ += ANGD[numP++];
+        }
+
         if (derivativeFlags.at(DERIVATIVES::GAMMA_OY))
         {
             ang.gammaOY += ANGD[numP++];
@@ -507,23 +561,38 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
             focus += ANGD[numP++];
         }
 
-        if(fabs(ang.lambdaOY * radToDegrees) > 2)
-            ang.lambdaOY = results.lambdaOY * degreesToRad;
-        if(fabs(ang.lambdaOX * radToDegrees) > 2)
-            ang.lambdaOX = results.lambdaOX * degreesToRad;
-        if(fabs(ang.alphaTwoOY * radToDegrees) > 2)
-            ang.alphaTwoOY = results.alphaTwoOY * degreesToRad;
-        if(fabs(ang.alphaTwoOX * radToDegrees) > 2)
-            ang.alphaTwoOX = results.alphaTwoOY * degreesToRad;
-        if(fabs(ang.gammaOY * radToDegrees) > 6)
-            ang.gammaOY = results.gammaOY * degreesToRad;
-        if(fabs(ang.gammaOX * radToDegrees) > 6)
-            ang.gammaOX = results.gammaOX *  degreesToRad;
-        if(fabs(focus - results.foc) > 1) focus = results.foc;
+//        if(fabs((ang.lambdaOY * radToDegrees) - results.lambdaOY) > 2)
+//            ang.lambdaOY = results.lambdaOY * degreesToRad;
 
-        collimator[0] = -cos(ang.lambdaOY);
-        collimator[1] = 0;
+//        if(fabs((ang.lambdaOX * radToDegrees) - results.lambdaOX)  > 10)
+//            ang.lambdaOX = results.lambdaOX * degreesToRad;
+
+//        if(fabs((ang.alphaTwoOY * radToDegrees) - results.alphaTwoOY) > 2)
+//            ang.alphaTwoOY = results.alphaTwoOY * degreesToRad;
+
+//        if(fabs((ang.alphaTwoOX * radToDegrees) - results.alphaTwoOX) > 2)
+//            ang.alphaTwoOX = results.alphaTwoOX * degreesToRad;
+
+//        if(fabs((ang.gammaOZ * radToDegrees) - results.gammaOZ) > 2)
+//            ang.gammaOZ = results.gammaOZ * degreesToRad;
+
+//        if(fabs((ang.gammaOY * radToDegrees) - results.gammaOY) > 6)
+//            ang.gammaOY = results.gammaOY * degreesToRad;
+
+//        if(fabs((ang.gammaOX * radToDegrees)- results.gammaOX) > 6)
+//            ang.gammaOX = results.gammaOX *  degreesToRad;
+
+//        if(fabs(focus - results.foc) > 1) focus = results.foc;
+
+        //это тоже не влияет
+
+        collimator[0] = -(cos(ang.lambdaOY) * cos(ang.lambdaOX));
+        collimator[1] = -(cos(ang.lambdaOY) * sin(ang.lambdaOX));
         collimator[2] = -sin(ang.lambdaOY);
+
+//        collimator[0] = -cos(ang.lambdaOY);
+//        collimator[1] = 0;
+//        collimator[2] = -sin(ang.lambdaOY);
         clk++;
     }
     while ((fabs(mxy - mxy_pr) > maxError)
@@ -536,6 +605,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     results.alphaTwoOY = ang.alphaTwoOY * radToDegrees;
     results.lambdaOY = ang.lambdaOY * radToDegrees;
     results.lambdaOX = ang.lambdaOX * radToDegrees;
+    results.gammaOZ = ang.gammaOZ * radToDegrees;
     results.gammaOY = ang.gammaOY * radToDegrees;
     results.gammaOX = ang.gammaOX * radToDegrees;
 
@@ -564,6 +634,11 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
         ++numP;
     }
 
+    if (derivativeFlags.at(DERIVATIVES::GAMMA_OZ))
+    {
+        errors.dgammaOZ = sqrtm(DRVM_1[numP][numP]) * mxy * radToSec;
+        ++numP;
+    }
 
     if (derivativeFlags.at(DERIVATIVES::GAMMA_OY))
     {
@@ -586,52 +661,6 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     errors.my = my * 1000;
     errors.mxy = mxy * 1000;
 
-    //    qDebug() <<  sqrtm(DRVM_1[0][0]) * mxy * RTS
-    //            << sqrtm(DRVM_1[1][1]) * mxy * RTS
-    //            << sqrtm(DRVM_1[2][2]) * mxy * RTS
-    //            << sqrtm(DRVM_1[3][3]) * mxy * RTS
-    //            << sqrtm(DRVM_1[4][4]) * mxy * RTS
-    //            << sqrtm(DRVM_1[5][5]) * mxy * RTS
-    //            << sqrtm(DRVM_1[6][6]) * mxy * 1000.
-    //            << mxy * 1000
-    //            << my  * 1000
-    //            << mx  * 1000;
-
-
-    //    static bool ff = false;
-    //    if(save)
-    //    {
-    //        QString fname = "results.txt";
-    //        QFile f(fname);
-    //        if (f.open(QIODevice::Append))
-    //        {
-    //            QTextStream out(&f);
-    //            out << ang.lambdaOY * radToDegrees * 60 << "\t"
-    //                << ang.alphaTwoOY * radToDegrees * 60 << "\t"
-    //                << ang.gammaOY * radToDegrees * 60<< "\t"
-    //                << ang.lambdaOX * radToDegrees * 60 << "\t"
-    //                << ang.alphaTwoOX * radToDegrees * 60<< "\t"
-    //                << ang.gammaOX * radToDegrees * 60<<"\t"
-    //                << focError <<"\t"
-    //                << sqrtm(DRVM_1[0][0]) * mxy * RTS <<"\t"
-    //                << sqrtm(DRVM_1[2][2]) * mxy * RTS <<"\t"
-    //                << sqrtm(DRVM_1[4][4]) * mxy * RTS <<"\t"
-    //                << sqrtm(DRVM_1[1][1]) * mxy * RTS <<"\t"
-    //                << sqrtm(DRVM_1[3][3]) * mxy * RTS <<"\t"
-    //                << sqrtm(DRVM_1[5][5]) * mxy * RTS <<"\t"
-    //                << mxy * 1000 <<"\t"
-    //                << my  * 1000 <<"\t"
-    //                << mx  * 1000 <<"\n";
-    //        }
-    //        f.close();
-    //    }
-    //    else
-    //    {
-
-    //            //focError = sqrtm(DRVM_1[6][6]) * mxy * 1000.;
-    //            //focError = sqrtm(DRVM_1[4][4]) * mxy * 1000.;
-    //            focError = sqrtm(DRVM_1[2][2]) * mxy * 1000.;
-    //    }
 
     if (mxy > thershold * pixelSize)
     {
@@ -642,7 +671,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     distData.y.clear();
     distData.dx.clear();
     distData.dy.clear();
-    qDebug() << "рассогласования";
+    //qDebug() << "рассогласования";
     for (int i = 0; i < Nst; i++)
     {
         int deltaStep = i * 2;
@@ -650,7 +679,6 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
         distData.y.append(Yst[i]);
         distData.dx.append(DFR[deltaStep]);
         distData.dy.append(DFR[deltaStep + 1]);
-        qDebug() << "X" << DFR[deltaStep] << "Y" << DFR[deltaStep + 1];
     }
 
     for (int count = 0; count < Nst; count++)
@@ -695,11 +723,15 @@ void MLSTask::saveShifts(const QString& prefix)
         QTextStream out(&coords);
         for (int i = 0; i < distData.x.size(); i++)
         {
-            out << QString("%1  %2  %3  %4\n")
+            out << QString("%1 %2 %3 %4 %5 %6 %7 %8\n")
+                   .arg(frame[i].x())
+                   .arg(frame[i].y())
                    .arg(distData.x[i])
                    .arg(distData.y[i])
                    .arg(distData.dx[i])
-                   .arg(distData.dy[i]);
+                   .arg(distData.dy[i])
+                   .arg(distData.dx_diff[i])
+                   .arg(distData.dy_diff[i]);
         }
     }
 }
@@ -712,6 +744,93 @@ void MLSTask::includeDistorsio()
         frame[i].setX(calculateDistorsio(frame[i].x(), frame[i].x(), frame[i].y(), xDistV));
         frame[i].setY(calculateDistorsio(frame[i].y(), frame[i].x(), frame[i].y(), yDistV));
     }
+}
+
+QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, double focus)
+{
+    double frameXF = frameX * 2;
+    double frameYF = frameY * 2;
+    QVector <QPointF> points {
+        QPointF(0,0),
+                QPointF(frameXF,0),
+                QPointF(frameXF, frameYF),
+                QPointF(0, frameYF),
+                QPointF(frameXF * (1./2),frameYF * (1./3)),
+                QPointF(frameXF * (2./3),frameYF * (1./2)),
+                QPointF(frameXF * (1./2),frameYF * (2./3)),
+                QPointF(frameXF * (1./3),frameYF * (1./2))};
+
+    for(int i = 0; i < points.size(); i++)
+    {
+        points[i].setX((points[i].x() - frameX) * pixelSize);
+        points[i].setY((points[i].y() - frameY) * pixelSize);
+    }
+    if (dist)
+    {
+        for (int i = 0; i < points.size(); i++)
+        {
+            points[i].setX(calculateDistorsio(points[i].x(), points[i].x(), points[i].y(), xDistV));
+            points[i].setY(calculateDistorsio(points[i].y(), points[i].x(), points[i].y(), yDistV));
+        }
+    }
+
+    QVector <QVector <double>> lmn;
+    for (int i = 0; i < points.size(); i++)
+    {
+        double lmnt[3];
+        BOKZMath::calculateLMNImage(points[i].x(), points[i].y(), focus, lmnt);
+        lmn.append(QVector <double> {lmnt[0], lmnt[1], lmnt[2]});
+    }
+    double m[8][8];
+    for (int i = 0; i < points.size(); i++)
+    {
+        for (int j = 0; j < points.size(); j++)
+        {
+            double ac = acos(calculateScalarProduct
+                             (lmn[i][0], lmn[j][0], lmn[i][1], lmn[j][1], lmn[i][2], lmn[j][2]));
+            m[i][j] = ac * radToDegrees;
+        }
+    }
+
+    QString line;
+    QString retLine;
+    QVector <QString> retLineVec;
+    for (int i = 0; i < points.size(); i++)
+    {
+        line.clear();
+        for (int j = 0; j < points.size(); j++)
+        {
+            GMS g(m[i][j]);
+            line.append( QString("%1 %2'%3''      ")
+                         .arg(g.getGradus())
+                         .arg(g.getMinutes())
+                         .arg(g.getSeconds()));
+            retLine.append(QString::number(m[i][j], 'f', 7) + "  ");
+
+        }
+        retLineVec.append(retLine);
+        retLine.clear();
+    }
+
+    QFile f(filename);
+    if (f.open(QIODevice::WriteOnly))
+    {
+        QTextStream out(&f);
+        for (int i = 0; i < points.size(); i++)
+        {
+            line.clear();
+            for (int j = 0; j < points.size(); j++)
+            {
+                GMS g(m[i][j]);
+                out << QString("%1 %2'%3''\t")
+                       .arg(g.getGradus())
+                       .arg(g.getMinutes())
+                       .arg(g.getSeconds());
+            }
+            out << "\n";
+        }
+    }
+    return retLineVec;
 }
 
 void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QVector <double>& dx, QVector <double>& dy)
@@ -909,6 +1028,9 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
     //            out << QString("%1 %2").arg(AX[i], 0, 'f', 15).arg(AY[i], 0, 'f', 15) << "\n";
     //        }
     //    }
+
+    distData.dx_diff.clear();
+    distData.dy_diff.clear();
     for (int i = 0; i < x.size(); i++)
     {
 
@@ -947,9 +1069,12 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
                 +AY[36]*x_8+AY[37]*x_7*y[i]+AY[38]*x_6*y_2+AY[39]*x_5*y_3+AY[40]*x_4*y_4+AY[41]*x_3*y_5+AY[42]*x_2*y_6+AY[43]*x[i]*y_7+AY[44]*y_8
                 +AY[45]*x_9+AY[46]*x_8*y[i]+AY[47]*x_7*y_2+AY[48]*x_6*y_3+AY[49]*x_5*y_4+AY[50]*x_4*y_5+AY[51]*x_3*y_6+AY[52]*x_2*y_7+AY[53]*x[i]*y_8+AY[54]*y_9;
 
+
         double dx_new = dx[i] - XP;
         double dy_new = dy[i] - YP;
-        qDebug() << dx_new << dy_new;
+        distData.dx_diff.append(dx_new);
+        distData.dy_diff.append(dy_new);
+        //        qDebug() << dx_new << dy_new;
         // mean_x.append(fabs(dx_new));
         // mean_y.append(fabs(dy_new));
 

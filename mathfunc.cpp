@@ -102,7 +102,7 @@ void calculateMoonDirection(double JD_DEV, double *pMoonI) noexcept
 
 
 
-void multMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept
+void multiplyMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept
 {
     VR[0] = M[0][0]*V[0]+M[0][1]*V[1]+M[0][2]*V[2];
     VR[1] = M[1][0]*V[0]+M[1][1]*V[1]+M[1][2]*V[2];
@@ -285,8 +285,8 @@ void  transSpeedGSKtoISK(double JD, double CG[3], double VG[3], double VI[3]) no
     constexpr const double W = 15.041 / radToSec;
 
     double CI [3];
-    multMatrixVector(MG, CG, CI);
-    multMatrixVector(MG, VG, VI);
+    multiplyMatrixVector(MG, CG, CI);
+    multiplyMatrixVector(MG, VG, VI);
 
     for (qint32 i = 0; i < 3; i ++)
     {
@@ -302,7 +302,7 @@ void  transCoordsGSKtoISK(double JD, double CG[3], double CI[3]) noexcept
 
     double MG[3][3]; // матрица перехода от ГСК к ИСК
     getGSKISKMatrix(JD,MG);
-    multMatrixVector(MG, CG, CI);
+    multiplyMatrixVector(MG, CG, CI);
 
     for (qint32 i = 0; i < 3; i++)
     {
@@ -383,7 +383,7 @@ double acosm(double xf) noexcept
     return acos(xf);
 }
 
-void multMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept
+void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept
 {
     double buf;
     int i,j,k;
@@ -416,7 +416,7 @@ void getAngularDisplacementFromOrientMatr(const double M_ornt_pr[3][3],const dou
         }
     }
     // перемножаем, чтобы получить разницу
-    multMatrix(M_ornt, MT_ornt_pr, dMB);
+    multiplyMatrix(M_ornt, MT_ornt_pr, dMB);
 
 
     delta=(dMB[0][0] + dMB[1][1] + dMB[2][2] - 1.)/2.;
@@ -827,6 +827,14 @@ int LUPDecompose(double **A, int N, double Tol, int *P) {
     return 1;  //decomposition done
 }
 
+void calculateLMNImage(double x, double y, double focus, double lmn[3])
+{
+    double length = sqrt(x * x + y * y + focus * focus);
+    lmn[0] =  -x / length;
+    lmn[1] =  -y / length;
+    lmn[2] = focus / length;
+}
+
 double LUPDeterminant(double **A, int *P, int N) {
 
     double det = A[0][0];
@@ -916,21 +924,21 @@ int minorM(int z,int x,int N, double** A,double**C)
     return 0;
 }
 
-double calculateDistorsio(double point_c, double coord_a, double coord_b,  QList <double>& distorsio_coef)
+double calculateDistorsio(double point_c, double coord_a, double alpha,  QList <double>& distorsio_coef)
 {
 
-    double delta = distorsio_coef[0] + distorsio_coef[1]*coord_a + distorsio_coef[2] * coord_b
-            +distorsio_coef[3] * pow( coord_a,2) + distorsio_coef[4] * coord_a * coord_b
-            +distorsio_coef[5] * pow(coord_b,2)+ distorsio_coef[6] * pow( coord_a,3)
-            +distorsio_coef[7] * pow( coord_a,2) * coord_b + distorsio_coef[8]* coord_a * pow(coord_b,2)
-            +distorsio_coef[9] * pow(coord_b,3) + distorsio_coef[10] * pow(coord_a,4)
-            +distorsio_coef[11] * pow(coord_a,3) * coord_b + distorsio_coef[12] * pow(coord_b,2) * pow(coord_a,2)
-            +distorsio_coef[13] * coord_a * pow(coord_b,3) + distorsio_coef[14] * pow(coord_b,4)
-            +distorsio_coef[15] * pow(coord_a,5) + distorsio_coef[16] * pow(coord_a,4) * coord_b
-            +distorsio_coef[17] * pow(coord_a,3) * pow(coord_b,2)
-            +distorsio_coef[18] * pow(coord_a,2) * pow(coord_b,3)
-            +distorsio_coef[19] * coord_a * pow(coord_b,4)
-            +distorsio_coef[20] * pow(coord_b,5);// +
+    double delta = distorsio_coef[0] + distorsio_coef[1]*coord_a + distorsio_coef[2] * alpha
+            +distorsio_coef[3] * pow( coord_a,2) + distorsio_coef[4] * coord_a * alpha
+            +distorsio_coef[5] * pow(alpha,2)+ distorsio_coef[6] * pow( coord_a,3)
+            +distorsio_coef[7] * pow( coord_a,2) * alpha + distorsio_coef[8]* coord_a * pow(alpha,2)
+            +distorsio_coef[9] * pow(alpha,3) + distorsio_coef[10] * pow(coord_a,4)
+            +distorsio_coef[11] * pow(coord_a,3) * alpha + distorsio_coef[12] * pow(alpha,2) * pow(coord_a,2)
+            +distorsio_coef[13] * coord_a * pow(alpha,3) + distorsio_coef[14] * pow(alpha,4)
+            +distorsio_coef[15] * pow(coord_a,5) + distorsio_coef[16] * pow(coord_a,4) * alpha
+            +distorsio_coef[17] * pow(coord_a,3) * pow(alpha,2)
+            +distorsio_coef[18] * pow(coord_a,2) * pow(alpha,3)
+            +distorsio_coef[19] * coord_a * pow(alpha,4)
+            +distorsio_coef[20] * pow(alpha,5);// +
 //            +distorsio_coef[21]*x_6+distorsio_coef[22]*x_5*y[i]+distorsio_coef[23]*x_4*y_2+distorsio_coef[24]*x_3*y_3+distorsio_coef[25]*x_2*y_4+distorsio_coef[26]*x[i]*y_5+distorsio_coef[27]*y_6
 //            +distorsio_coef[28]*x_7+distorsio_coef[29]*x_6*y[i]+distorsio_coef[30]*x_5*y_2+distorsio_coef[31]*x_4*y_3+distorsio_coef[32]*x_3*y_4+distorsio_coef[33]*x_2*y_5+distorsio_coef[34]*x[i]*y_6+distorsio_coef[35]*y_7
 //            +distorsio_coef[36]*x_8+distorsio_coef[37]*x_7*y[i]+distorsio_coef[38]*x_6*y_2+distorsio_coef[39]*x_5*y_3+distorsio_coef[40]*x_4*y_4+distorsio_coef[41]*x_3*y_5+distorsio_coef[42]*x_2*y_6+distorsio_coef[43]*x[i]*y_7+distorsio_coef[44]*y_8
@@ -939,25 +947,50 @@ double calculateDistorsio(double point_c, double coord_a, double coord_b,  QList
     return point_c - delta;
 }
 
-double calculateDistorsioDelta(double coord_a, double coord_b, QList<double> &distorsio_coef)
+double calculateDistorsioDelta(double coord_a, double alpha, QList<double> &distorsio_coef)
 {
 
-    double delta = distorsio_coef[0] + distorsio_coef[1]*coord_a + distorsio_coef[2] * coord_b
-            +distorsio_coef[3] * pow( coord_a,2) + distorsio_coef[4] * coord_a * coord_b
-            +distorsio_coef[5] * pow(coord_b,2)+ distorsio_coef[6] * pow( coord_a,3)
-            +distorsio_coef[7] * pow( coord_a,2) * coord_b + distorsio_coef[8]* coord_a * pow(coord_b,2)
-            +distorsio_coef[9] * pow(coord_b,3) + distorsio_coef[10] * pow(coord_a,4)
-            +distorsio_coef[11] * pow(coord_a,3) * coord_b + distorsio_coef[12] * pow(coord_b,2) * pow(coord_a,2)
-            +distorsio_coef[13] * coord_a * pow(coord_b,3) + distorsio_coef[14] * pow(coord_b,4)
-            +distorsio_coef[15] * pow(coord_a,5) + distorsio_coef[16] * pow(coord_a,4) * coord_b
-            +distorsio_coef[17] * pow(coord_a,3) * pow(coord_b,2)
-            +distorsio_coef[18] * pow(coord_a,2) * pow(coord_b,3)
-            +distorsio_coef[19] * coord_a * pow(coord_b,4)
-            +distorsio_coef[20] * pow(coord_b,5);
+    double delta = distorsio_coef[0] + distorsio_coef[1]*coord_a + distorsio_coef[2] * alpha
+            +distorsio_coef[3] * pow( coord_a,2) + distorsio_coef[4] * coord_a * alpha
+            +distorsio_coef[5] * pow(alpha,2)+ distorsio_coef[6] * pow( coord_a,3)
+            +distorsio_coef[7] * pow( coord_a,2) * alpha + distorsio_coef[8]* coord_a * pow(alpha,2)
+            +distorsio_coef[9] * pow(alpha,3) + distorsio_coef[10] * pow(coord_a,4)
+            +distorsio_coef[11] * pow(coord_a,3) * alpha + distorsio_coef[12] * pow(alpha,2) * pow(coord_a,2)
+            +distorsio_coef[13] * coord_a * pow(alpha,3) + distorsio_coef[14] * pow(alpha,4)
+            +distorsio_coef[15] * pow(coord_a,5) + distorsio_coef[16] * pow(coord_a,4) * alpha
+            +distorsio_coef[17] * pow(coord_a,3) * pow(alpha,2)
+            +distorsio_coef[18] * pow(coord_a,2) * pow(alpha,3)
+            +distorsio_coef[19] * coord_a * pow(alpha,4)
+            +distorsio_coef[20] * pow(alpha,5);
 
     return delta;
 }
 
+
+void rotateOY(double alpha, double mIn[3][3], double mOut[3][3])
+{
+    double m[3][3] = {{cos(alpha), 0, sin(alpha)},
+                      {0, 1, 0},
+                      {-sin(alpha), 0, cos(alpha)}};
+    multiplyMatrix(m, mIn, mOut);
+
+}
+
+void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3])
+{
+    double m[3][3] = {{cos(alpha), -sin(alpha), 0},
+                      {sin(alpha), cos(alpha), 0},
+                      {0, 0, 1}};
+    multiplyMatrix(m, mIn, mOut);
+}
+
+void rotateOX(double alpha, double mIn[3][3], double mOut[3][3])
+{
+    double m[3][3] = {{1, 0, 0},
+                      {0, cos(alpha), -sin(alpha)},
+                      {0, sin(alpha), cos(alpha)}};
+    multiplyMatrix(m, mIn , mOut);
+}
 
 }
 

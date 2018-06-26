@@ -39,6 +39,7 @@ private:
     void printResults(Results& res);
     void printErrors(ResultErrors& err);
     void saveErrors(ResultErrors& err);
+    void printAngles (const QString& before, const QString& after);
     void saveResults(Results& res);
 
     QBitArray setFlags();

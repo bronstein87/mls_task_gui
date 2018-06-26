@@ -27,12 +27,14 @@ SOURCES += \
         main.cpp \
         mainwindow.cpp \
     mlstask.cpp \
-    mathfunc.cpp
+    mathfunc.cpp \
+    gms.cpp
 
 HEADERS += \
         mainwindow.h \
     mlstask.h \
-    mathfunc.h
+    mathfunc.h \
+    gms.h
 
 FORMS += \
         mainwindow.ui

@@ -10,6 +10,81 @@ MainWindow::MainWindow(QWidget *parent) :
     loadSettings();
     ui->powComboBox->addItems(QStringList {"3", "5"});
     ui->formatTypeComboBox->addItems(QStringList{"Формат №1", "Формат №2(Никитин)"});
+    //    double quat1[4]{-0.419788873899061,
+    //                 -0.238363459945942,
+    //                 0.649585552399954,
+    //                 0.587365840358774};
+    //    double angles[3];
+
+    //     quatToEkvA(quat1,angles);
+    //     qDebug() << angles[0] << angles[1] << angles[2];
+    //    double quat2[4]{-0.419564124451634,
+    //                 -0.236331216961869,
+    //                 0.649326466321183,
+    //                 0.588632582859084
+    //};
+    //        double angles2[3];
+    //         quatToEkvA(quat2,angles2);
+    //         qDebug() << angles2[0] << angles2[1] << angles2[2];
+    //            qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
+    //    double quat1[4]{0.499440916946064,
+    //                    0.650944714273445,
+    //                    -0.098704654996217,
+    //                    -0.563104687639594
+    //};
+    //    double angles[3];
+
+    //     quatToEkvA(quat1,angles);
+    //     qDebug() << angles[0] << angles[1] << angles[2];
+    //    double quat2[4]{0.499414246077221,
+    //                    0.6481685866302,
+    //                    -0.0978453471311587,
+    //                    -0.566470825829316
+
+    //};
+    //        double angles2[3];
+    //         quatToEkvA(quat2,angles2);
+    //         qDebug() << angles2[0] << angles2[1] << angles2[2];
+    //            qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
+    //    double quat1[4]{0.212915879772215,
+    //                    0.657417678099037,
+    //                    -0.0375695997619592,
+    //                    0.721842941833932
+
+    //};
+    //    double angles[3];
+
+    //     quatToEkvA(quat1,angles);
+    //     qDebug() << angles[0] << angles[1] << angles[2];
+    //    double quat2[4]{0.209797806226135,
+    //                    0.657261057540879,
+    //                    -0.0391216354117838,
+    //                    0.722815404801227
+    //};
+    //        double angles2[3];
+    //         quatToEkvA(quat2,angles2);
+    //         qDebug() << angles2[0] << angles2[1] << angles2[2];
+    //            qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
+
+
+
+    //    double quat1[4]{    			0.2110919506,
+    //                            -0.0562356822,
+    //                                -0.9637190108,
+    //                                -0.1533735246};
+    //double angles[3];
+
+    //quatToEkvA(quat1,angles);
+    //qDebug() << angles[0] << angles[1] << angles[2];
+    //double quat2[4]{0.2110987903,
+    //                -0.0562792868,
+    //                -0.9637168650,
+    //                -0.1533615143
+    //               };
+    //double angles2[3];
+    //quatToEkvA(quat2,angles2);
+    //qDebug() << angles2[0] << angles2[1] << angles2[2];
+    //qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
 }
 
 MainWindow::~MainWindow()
@@ -34,6 +109,8 @@ void MainWindow::saveSettings()
     settings->setValue("gammaXValue", ui->gammaOXSpinBox->value());
     settings->setValue("gammaYCheck", ui->gammaYCheckBox->isChecked());
     settings->setValue("gammaYValue", ui->gammaOYSpinBox->value());
+    settings->setValue("gammaZCheck", ui->gammaZCheckBox->isChecked());
+    settings->setValue("gammaZValue", ui->gammaOZSpinBox->value());
     settings->setValue("alpha2YCheck", ui->alpha2YCheckBox->isChecked());
     settings->setValue("alpha2YValue", ui->alpha2OYSpinBox->value());
     settings->setValue("alpha2XCheck", ui->alpha2XCheckBox->isChecked());
@@ -60,6 +137,8 @@ void MainWindow::loadSettings()
     ui->gammaOXSpinBox->setValue(settings->value("gammaXValue").toDouble());
     ui->gammaYCheckBox->setChecked(settings->value("gammaYCheck").toBool());
     ui->gammaOYSpinBox->setValue(settings->value("gammaYValue").toDouble());
+    ui->gammaZCheckBox->setChecked(settings->value("gammaZCheck").toBool());
+    ui->gammaOZSpinBox->setValue(settings->value("gammaZValue").toDouble());
     ui->alpha2YCheckBox->setChecked(settings->value("alpha2YCheck").toBool());
     ui->alpha2OYSpinBox->setValue(settings->value("alpha2YValue").toDouble());
     ui->alpha2XCheckBox->setChecked(settings->value("alpha2XCheck").toBool());
@@ -83,6 +162,7 @@ Results MainWindow::setFirstApprox()
     results.lambdaOX = ui->lambdaOXSpinBox->value();
     results.alphaTwoOY = ui->alpha2OYSpinBox->value();
     results.alphaTwoOX = ui->alpha2OXSpinBox->value();
+    results.gammaOZ = ui->gammaOZSpinBox->value();
     results.gammaOY = ui->gammaOYSpinBox->value();
     results.gammaOX = ui->gammaOXSpinBox->value();
     return results;
@@ -95,6 +175,7 @@ QBitArray MainWindow::setFlags()
     derivativeFlags.setBit(DERIVATIVES::LAMBDA_OX, ui->lambdaXCheckBox->isChecked());
     derivativeFlags.setBit(DERIVATIVES::ALPHA_TWO_OY, ui->alpha2YCheckBox->isChecked());
     derivativeFlags.setBit(DERIVATIVES::ALPHA_TWO_OX, ui->alpha2XCheckBox->isChecked());
+    derivativeFlags.setBit(DERIVATIVES::GAMMA_OZ, ui->gammaZCheckBox->isChecked());
     derivativeFlags.setBit(DERIVATIVES::GAMMA_OY, ui->gammaYCheckBox->isChecked());
     derivativeFlags.setBit(DERIVATIVES::GAMMA_OX, ui->gammaXCheckBox->isChecked());
     derivativeFlags.setBit(DERIVATIVES::PHI, false);
@@ -107,50 +188,65 @@ void MainWindow::printResults(Results& res)
 {
     ui->textEdit->append("\n=================================================");
     ui->textEdit->append("\nРезультаты: \n");
-    ui->textEdit->append(QString("%1%2%3%4%5%6%7")
-                         .arg("Фокус", 10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
+    ui->textEdit->append(QString("%1%2%3%4%5%6%7%8")
+                         .arg("Фокус", -10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
                          .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
-                         .arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' '));
-    ui->textEdit->append(QString("%1%2%3%4%5%6%7")
-                         .arg(res.foc, 10, ' ').arg(res.lambdaOY, 10, ' ')
-                         .arg(res.lambdaOX, 10, ' ').arg(res.alphaTwoOY, 10, ' ')
-                         .arg(res.alphaTwoOX, 10, ' ').arg(res.gammaOY, 10, ' ')
-                         .arg(res.gammaOX, 10, ' '));
+                         .arg("ГаммаOZ", 10, ' ').arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' '));
+    ui->textEdit->append(QString("%1%2%3%4%5%6%7%8")
+                         .arg(res.foc, -10, 'f', 4).arg(res.lambdaOY, 10, 'f', 4)
+                         .arg(res.lambdaOX, 10, 'f', 4).arg(res.alphaTwoOY, 10, 'f', 4)
+                         .arg(res.alphaTwoOX, 10, 'f', 4).arg(res.gammaOZ, 10, 'f', 4)
+                         .arg(res.gammaOY, 10, 'f', 4)
+                         .arg(res.gammaOX, 10, 'f', 4));
 
 }
 void MainWindow::printErrors(ResultErrors& err)
 {
     ui->textEdit->append("\nОшибки (углы в секундах, остальное в микронах): \n ");
-    ui->textEdit->append(QString("%1%2%3%4%5%6%7%8%9%10")
+    ui->textEdit->append(QString("%1%2%3%4%5%6%7%8%9%10%11")
                          .arg("Фокус", 10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
                          .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
-                         .arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' ')
+                         .arg("ГаммаOZ", 10, ' ').arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' ')
                          .arg("mx", 10, ' ').arg("my", 10, ' ').arg("mxy", 10, ' '));
-    ui->textEdit->append(QString("%1%2%3%4%5%6%7%8%9%10")
-                         .arg(err.dfoc, 10, ' ').arg(err.dlambdaOY, 10, ' ')
-                         .arg(err.dlambdaOX, 10, ' ').arg(err.dalphaTwoOY, 10, ' ')
-                         .arg(err.dalphaTwoOX, 10, ' ').arg(err.dgammaOY, 10, ' ').arg(err.dgammaOX, 10, ' ')
-                         .arg(err.mx, 10, ' ').arg(err.my, 10, ' ').arg(err.mxy, 10, ' '));
+    ui->textEdit->append(QString("%1%2%3%4%5%6%7%8%9%10%11")//%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11
+                         .arg(err.dfoc, 10, 'f', 2, ' ')
+                         .arg(err.dlambdaOY, 10, 'f', 2, ' ').arg(err.dlambdaOX, 12, 'f', 2, ' ')
+                         .arg(err.dalphaTwoOY, 12, 'f', 2, ' ').arg(err.dalphaTwoOX, 14, 'f', 2, ' ')
+                         .arg(err.dgammaOZ, 14, 'f', 2, ' ').arg(err.dgammaOY, 14, 'f', 2, ' ').arg(err.dgammaOX, 13, 'f', 2, ' ')
+                         .arg(err.mx, 10, 'f', 2, ' ').arg(err.my, 10, 'f', 2, ' ').arg(err.mxy, 10, 'f', 2, ' '));
     ui->textEdit->append("\n=================================================");
+
 }
 
+void MainWindow::printAngles (const QString& before, const QString& after)
+{
+    ui->textEdit->append("\nУглы до дисторсии:\n");
+    ui->textEdit->append(before);
+    if (!after.isEmpty())
+    {
+        ui->textEdit->append("\nУглы после дисторсии:\n");
+        ui->textEdit->append(after);
+    }
 
+}
 void MainWindow::saveErrors(ResultErrors& err)
 {
     QFile file("errors.txt");
     if (file.open(QIODevice::WriteOnly))
     {
         QTextStream out(&file);
-        out << QString("%1%2%3%4%5%6%7%8%9%10")
-               .arg("Фокус", 10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
-               .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
-               .arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' ')
-               .arg("mx", 10, ' ').arg("my", 10, ' ').arg("mxy", 10, ' ') << "\n";
-        out << QString("%1%2%3%4%5%6%7%8%9%10")
-               .arg(err.dfoc, 10, ' ').arg(err.dlambdaOY, 10, ' ')
-               .arg(err.dlambdaOX, 10, ' ').arg(err.dalphaTwoOY, 10, ' ')
-               .arg(err.dalphaTwoOX, 10, ' ').arg(err.dgammaOY, 10, ' ').arg(err.dgammaOX, 10, ' ')
-               .arg(err.mx, 10, ' ').arg(err.my, 10, ' ').arg(err.mxy, 10, ' ');
+        out << QString("%1%2%3%4%5%6%7%8%9%10%11")
+               .arg("Фокус", -10, ' ').arg("ЛямбдаОУ", -10, ' ').arg("ЛямбдаОХ",-10, ' ')
+               .arg("Альфа2ОУ", -10, ' ').arg("Альфа2ОХ", -10, ' ')
+               .arg("ГаммаОZ", -10, ' ').arg("ГаммаОУ", -10, ' ').arg("ГаммаОХ", -10, ' ')
+               .arg("mx", -10, ' ').arg("my", -10, ' ').arg("mxy", -10, ' ') << "\n";
+
+        out << QString("%1%2%3%4%5%6%7%8%9%10%11")//%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11
+               .arg(err.dfoc, 10, 'f', 2, ' ')
+               .arg(err.dlambdaOY, 10, 'f', 2, ' ').arg(err.dlambdaOX, 12, 'f', 2, ' ')
+               .arg(err.dalphaTwoOY, 12, 'f', 2, ' ').arg(err.dalphaTwoOX, 14, 'f', 2, ' ')
+               .arg(err.dgammaOZ, 14, 'f', 2, ' ').arg(err.dgammaOY, 14, 'f', 2, ' ').arg(err.dgammaOX, 13, 'f', 2, ' ')
+               .arg(err.mx, 10, 'f', 2, ' ').arg(err.my, 10, 'f', 2, ' ').arg(err.mxy, 10, 'f', 2, ' ');
 
     }
 }
@@ -160,15 +256,16 @@ void MainWindow::saveResults(Results& res)
     if (file.open(QIODevice::WriteOnly))
     {
         QTextStream out(&file);
-        out << QString("%1%2%3%4%5%6%7")
+        out << QString("%1%2%3%4%5%6%7%8")
                .arg("Фокус", 10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
                .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
                .arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' ') << "\n";
-        out << QString("%1%2%3%4%5%6%7")
-               .arg(res.foc, 10, ' ').arg(res.lambdaOY, 10, ' ')
-               .arg(res.lambdaOX, 10, ' ').arg(res.alphaTwoOY, 10, ' ')
-               .arg(res.alphaTwoOX, 10, ' ').arg(res.gammaOY, 10, ' ')
-               .arg(res.gammaOX, 10, ' ');;
+        out << QString("%1%2%3%4%5%6%7%8")
+               .arg(res.foc, 8, ' ').arg(res.lambdaOY, 8, ' ')
+               .arg(res.lambdaOX, 8, ' ').arg(res.alphaTwoOY, 8, ' ')
+               .arg(res.alphaTwoOX, 8, ' ').arg(res.gammaOZ, 8, 'f')
+               .arg(res.gammaOY, 8, ' ')
+               .arg(res.gammaOX, 8, ' ');;
 
     }
 }
@@ -229,6 +326,7 @@ void MainWindow::on_pushButton_2_clicked()
         auto flags = setFlags();
         auto results = setFirstApprox();
         ResultErrors errors;
+
         if (ui->fitFocusCheckBox->isChecked()
                 && flags.at(DERIVATIVES::FOCUS))
         {
@@ -238,6 +336,8 @@ void MainWindow::on_pushButton_2_clicked()
 
         task.calculate(flags, results, errors);
         task.saveShifts("before_dist");
+        auto angBeforeDist = task.printTestTable("ang_distance_before_dist.txt", false, results.foc);
+        QVector <QString> angAfterDist;
         if (ui->distRadioButton->isChecked())
         {
             quint32 pow = ui->powComboBox->currentText().toInt();
@@ -246,10 +346,22 @@ void MainWindow::on_pushButton_2_clicked()
             task.includeDistorsio();
             flags.setBit(DERIVATIVES::FOCUS, false);
             task.calculate(flags, results, errors);
+            angAfterDist = task.printTestTable("ang_distance_after_dist.txt", true, results.foc);
+            ui->textEdit->append("\nУглы после дисторсии:\n");
+            ui->textEdit->append(angAfterDist[0]);
             task.saveShifts("after_dist");
         }
         printResults(results);
         printErrors(errors);
+
+        if (angAfterDist.size() > 0)
+        {
+            printAngles(angBeforeDist[0], angAfterDist[0]);
+        }
+        else
+        {
+            printAngles(angBeforeDist[0], QString());
+        }
         saveResults(results);
         saveErrors(errors);
     }
@@ -396,8 +508,6 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
                 resFilesData.append(coordFilesData[i]);
                 resFilesData.last().append(anglesFilesData[j][2]);
                 resFilesData.last().append(anglesFilesData[j][3]);
-                //coordFilesData[i].append(anglesFilesData[j][2]);
-                //coordFilesData[i].append(anglesFilesData[j][3]);
                 pos = j;
                 break;
             }
