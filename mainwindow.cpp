@@ -10,81 +10,7 @@ MainWindow::MainWindow(QWidget *parent) :
     loadSettings();
     ui->powComboBox->addItems(QStringList {"3", "5"});
     ui->formatTypeComboBox->addItems(QStringList{"Формат №1", "Формат №2(Никитин)"});
-    //    double quat1[4]{-0.419788873899061,
-    //                 -0.238363459945942,
-    //                 0.649585552399954,
-    //                 0.587365840358774};
-    //    double angles[3];
 
-    //     quatToEkvA(quat1,angles);
-    //     qDebug() << angles[0] << angles[1] << angles[2];
-    //    double quat2[4]{-0.419564124451634,
-    //                 -0.236331216961869,
-    //                 0.649326466321183,
-    //                 0.588632582859084
-    //};
-    //        double angles2[3];
-    //         quatToEkvA(quat2,angles2);
-    //         qDebug() << angles2[0] << angles2[1] << angles2[2];
-    //            qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
-    //    double quat1[4]{0.499440916946064,
-    //                    0.650944714273445,
-    //                    -0.098704654996217,
-    //                    -0.563104687639594
-    //};
-    //    double angles[3];
-
-    //     quatToEkvA(quat1,angles);
-    //     qDebug() << angles[0] << angles[1] << angles[2];
-    //    double quat2[4]{0.499414246077221,
-    //                    0.6481685866302,
-    //                    -0.0978453471311587,
-    //                    -0.566470825829316
-
-    //};
-    //        double angles2[3];
-    //         quatToEkvA(quat2,angles2);
-    //         qDebug() << angles2[0] << angles2[1] << angles2[2];
-    //            qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
-    //    double quat1[4]{0.212915879772215,
-    //                    0.657417678099037,
-    //                    -0.0375695997619592,
-    //                    0.721842941833932
-
-    //};
-    //    double angles[3];
-
-    //     quatToEkvA(quat1,angles);
-    //     qDebug() << angles[0] << angles[1] << angles[2];
-    //    double quat2[4]{0.209797806226135,
-    //                    0.657261057540879,
-    //                    -0.0391216354117838,
-    //                    0.722815404801227
-    //};
-    //        double angles2[3];
-    //         quatToEkvA(quat2,angles2);
-    //         qDebug() << angles2[0] << angles2[1] << angles2[2];
-    //            qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
-
-
-
-    //    double quat1[4]{    			0.2110919506,
-    //                            -0.0562356822,
-    //                                -0.9637190108,
-    //                                -0.1533735246};
-    //double angles[3];
-
-    //quatToEkvA(quat1,angles);
-    //qDebug() << angles[0] << angles[1] << angles[2];
-    //double quat2[4]{0.2110987903,
-    //                -0.0562792868,
-    //                -0.9637168650,
-    //                -0.1533615143
-    //               };
-    //double angles2[3];
-    //quatToEkvA(quat2,angles2);
-    //qDebug() << angles2[0] << angles2[1] << angles2[2];
-    //qDebug() << angles[0] - angles2[0] << angles[1] -angles2[1] << angles[2] -angles2[2];
 }
 
 MainWindow::~MainWindow()
@@ -116,7 +42,9 @@ void MainWindow::saveSettings()
     settings->setValue("alpha2XCheck", ui->alpha2XCheckBox->isChecked());
     settings->setValue("alpha2XValue", ui->alpha2OXSpinBox->value());
     settings->setValue("path",ui->pathLineEdit->text());
-
+    settings->setValue("reverse", ui->reverseCheckBox->isChecked());
+    settings->setValue("real_data", ui->realDataRadioButton->isChecked());
+    settings->setValue("model_data", ui->modelRadioButton->isChecked());
     settings->sync();
 
 }
@@ -144,13 +72,18 @@ void MainWindow::loadSettings()
     ui->alpha2XCheckBox->setChecked(settings->value("alpha2XCheck").toBool());
     ui->alpha2OXSpinBox->setValue(settings->value("alpha2XValue").toDouble());
     ui->pathLineEdit->setText(settings->value("path").toString());
+    ui->reverseCheckBox->setChecked(settings->value("reverse").toBool());
+    ui->realDataRadioButton->setChecked(settings->value("real_data").toBool());
+    ui->modelRadioButton->setChecked(settings->value("model_data").toBool());
 }
 
 void MainWindow::on_pushButton_clicked()
 {
+    static QString fn = QString();
     QString fileName = QFileDialog::getOpenFileName(this,
                                                     tr("Open modeling file"),
-                                                    QDir::currentPath(), tr("*.txt"));
+                                                    fn, tr("*.txt"));
+    fn = fileName;
     QDir::setCurrent(fileName);
     ui->pathLineEdit->setText(fileName);
 }
@@ -303,7 +236,7 @@ void MainWindow::on_pushButton_2_clicked()
         }
         else
         {
-            task.readRealData(ui->pathLineEdit->text(), true);
+            task.readRealData(ui->pathLineEdit->text(), true, ui->reverseCheckBox->isChecked());
         }
 
         if (ui->upRadioButton->isChecked())
@@ -322,6 +255,15 @@ void MainWindow::on_pushButton_2_clicked()
         {
             task.setAxisDirection(RIGHT);
         }
+        else if (ui->mirrorYRadioButton->isChecked())
+        {
+            task.setAxisDirection(REVERSE_Y);
+        }
+        else if (ui->mirrorXRadioButton->isChecked())
+        {
+            task.setAxisDirection(REVERSE_X);
+        }
+
 
         auto flags = setFlags();
         auto results = setFirstApprox();
@@ -402,37 +344,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
         ui->textEdit->append("Нечего объединять. Один из типов файлов отсутствует\n");
         return;
     }
-
-    //    auto parse = [this](auto& v, const auto& pos) {
-    //        for (const auto& i : v)
-    //        {
-    //            QFile file(i);
-    //            if (file.open(QIODevice::ReadOnly))
-    //            {
-    //                QTextStream in(&file);
-    //                QString line;
-    //                while (in.readLineInto(&line))
-    //                {
-    //                    QStringList list = line.split("\t", QString::SplitBehavior::SkipEmptyParts);
-    //                    v.append(list);
-    //                }
-    //            }
-    //            else
-    //            {
-    //                ui->textEdit->append("Не удалось открыть файл" + i + "\n");
-    //                return;
-    //            }
-    //            file.close();
-    //        }
-    //        for (int i = 0; i < v.size(); i++)
-    //        {
-
-    //            quint32 pos = v[i][pos].indexOf(QRegExp("\\\\(?:(?!\\\\))\\d\\d\\."));
-    //            v[i][pos] = v[i][pos].mid(pos);
-    //        }
-    //    };
     QVector <QStringList> coordFilesData;
-    // parse(coordFilesData, 13);
     for (const auto& i : coordFiles)
     {
         QFile file(i);
@@ -457,13 +369,12 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     {
 
         quint32 pos =
-                coordFilesData[i][13].indexOf(QRegExp("\\\\(?:(?!\\\\))\\d\\d\\."));
+                coordFilesData[i][13].indexOf(QRegExp("(\\\\)(?!.*\\\\)"));
         coordFilesData[i][13] =
                 coordFilesData[i][13].mid(pos);
     }
 
     QVector <QStringList> anglesFilesData;
-    //parse(anglesFilesData, 1);
     for (const auto&i : angleFiles)
     {
         QFile file(i);
@@ -488,7 +399,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     {
 
         quint32 pos =
-                anglesFilesData[i][1].indexOf(QRegExp("\\\\(?:(?!\\\\))\\d\\d\\."));
+                anglesFilesData[i][1].indexOf(QRegExp("(\\\\)(?!.*\\\\)"));//QRegExp("\\\\(?:(?!\\\\))\\d\\d\\.")
         anglesFilesData[i][1] =
                 anglesFilesData[i][1].mid(pos);
     }
@@ -497,12 +408,14 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
 
     QVector <QStringList> resFilesData;
     quint32 pos = 0;
+    bool flag = false;
     for (int i = 0; i < coordFilesData.size(); i++)
     {
-        for (int j = pos; j < anglesFilesData.size(); j++)
+        for (int j = 0; j < anglesFilesData.size(); j++)
         {
             if (coordFilesData[i][13] == anglesFilesData[j][1])
             {
+                flag = true;
                 anglesFilesData[j][2].replace(",",".");
                 anglesFilesData[j][3].replace(",",".");
                 resFilesData.append(coordFilesData[i]);
@@ -511,7 +424,13 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
                 pos = j;
                 break;
             }
+
         }
+        if (flag == false)
+        {
+            qDebug() <<coordFilesData[i][13] ;
+        }
+        flag = false;
     }
 
     pos = files[0].indexOf(QRegExp("(/)(?!.+/)"), 0);

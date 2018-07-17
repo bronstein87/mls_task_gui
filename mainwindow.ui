@@ -7,14 +7,14 @@
     <x>0</x>
     <y>0</y>
     <width>1049</width>
-    <height>611</height>
+    <height>628</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Расчёт модели</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <layout class="QGridLayout" name="gridLayout_2">
+   <layout class="QGridLayout" name="gridLayout_5">
     <item row="0" column="0">
      <widget class="QGroupBox" name="gridGroupBox">
       <property name="font">
@@ -26,48 +26,65 @@
       <property name="title">
        <string>Параметры прибора</string>
       </property>
-      <layout class="QGridLayout" name="gridLayout_5">
-       <item row="1" column="2">
-        <widget class="QLabel" name="label_26">
+      <layout class="QGridLayout" name="gridLayout_7">
+       <item row="0" column="3">
+        <widget class="QLabel" name="label_23">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="text">
-          <string>мм.</string>
+          <string>x</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="0" colspan="6">
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <item>
-          <widget class="QRadioButton" name="upRadioButton">
-           <property name="text">
-            <string>Вверх</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="downRadioButton">
-           <property name="text">
-            <string>Вниз</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="leftRadioButton">
-           <property name="text">
-            <string>Влево</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="rightRadioButton">
-           <property name="text">
-            <string>Вправо</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_22">
+         <property name="text">
+          <string>Матрица</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QSpinBox" name="xMatrixSpinBox">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="font">
+          <font>
+           <weight>50</weight>
+           <bold>false</bold>
+          </font>
+         </property>
+         <property name="maximum">
+          <number>10000</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QLabel" name="label_24">
+         <property name="text">
+          <string>Размер пикселя:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QDoubleSpinBox" name="pixSizeSpinBox">
+         <property name="font">
+          <font>
+           <weight>50</weight>
+           <bold>false</bold>
+          </font>
+         </property>
+         <property name="decimals">
+          <number>6</number>
+         </property>
+        </widget>
        </item>
        <item row="0" column="4">
         <widget class="QSpinBox" name="yMatrixSpinBox">
@@ -89,76 +106,245 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_24">
+       <item row="1" column="3">
+        <widget class="QLabel" name="label_26">
          <property name="text">
-          <string>Размер пикселя:</string>
+          <string>мм.</string>
          </property>
         </widget>
        </item>
-       <item row="0" column="1">
-        <widget class="QSpinBox" name="xMatrixSpinBox">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="font">
-          <font>
-           <weight>50</weight>
-           <bold>false</bold>
-          </font>
-         </property>
-         <property name="maximum">
-          <number>10000</number>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QDoubleSpinBox" name="pixSizeSpinBox">
-         <property name="font">
-          <font>
-           <weight>50</weight>
-           <bold>false</bold>
-          </font>
-         </property>
-         <property name="decimals">
-          <number>6</number>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
+       <item row="2" column="0" colspan="2">
         <widget class="QLabel" name="label_28">
          <property name="text">
           <string>Куда смотрит ось OX ПСК?</string>
          </property>
         </widget>
        </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_22">
+       <item row="5" column="0">
+        <widget class="QCheckBox" name="reverseCheckBox">
          <property name="text">
-          <string>Матрица</string>
+          <string>Реверс (X=Y, Y=X)</string>
          </property>
         </widget>
        </item>
-       <item row="0" column="2">
-        <widget class="QLabel" name="label_23">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
+       <item row="4" column="0" colspan="6">
+        <widget class="QGroupBox" name="gridGroupBox_2">
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="0" column="2" alignment="Qt::AlignLeft">
+           <widget class="QRadioButton" name="leftRadioButton">
+            <property name="text">
+             <string>Влево</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QRadioButton" name="upRadioButton">
+            <property name="text">
+             <string>Вверх</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QRadioButton" name="downRadioButton">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Вниз</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QRadioButton" name="mirrorXRadioButton">
+            <property name="text">
+             <string>Зеркалировать X</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3" alignment="Qt::AlignRight">
+           <widget class="QRadioButton" name="rightRadioButton">
+            <property name="text">
+             <string>Вправо</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QRadioButton" name="mirrorYRadioButton">
+            <property name="text">
+             <string>Зеркалировать Y</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="0" column="1" rowspan="3">
+     <widget class="QGroupBox" name="groupBox">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="title">
+       <string>Результаты</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_3">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetMaximumSize</enum>
+       </property>
+       <item row="2" column="0">
+        <widget class="QPushButton" name="pushButton_2">
+         <property name="font">
+          <font>
+           <weight>50</weight>
+           <bold>false</bold>
+          </font>
          </property>
          <property name="text">
-          <string>x</string>
+          <string>Начать расчёт</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="pushButton_3">
+         <property name="font">
+          <font>
+           <weight>50</weight>
+           <bold>false</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Очистить</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0" colspan="2">
+        <widget class="QTextEdit" name="textEdit">
+         <property name="minimumSize">
+          <size>
+           <width>600</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="font">
+          <font>
+           <weight>50</weight>
+           <bold>false</bold>
+          </font>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
       </layout>
      </widget>
     </item>
-    <item row="3" column="0" rowspan="2">
+    <item row="1" column="0">
+     <widget class="QGroupBox" name="horizontalGroupBox">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="title">
+       <string>Дисторсия</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_6">
+       <property name="leftMargin">
+        <number>30</number>
+       </property>
+       <property name="rightMargin">
+        <number>30</number>
+       </property>
+       <property name="horizontalSpacing">
+        <number>140</number>
+       </property>
+       <item row="1" column="1" alignment="Qt::AlignLeft">
+        <widget class="QComboBox" name="powComboBox">
+         <property name="font">
+          <font>
+           <weight>50</weight>
+           <bold>false</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QRadioButton" name="distRadioButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Считать</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_21">
+         <property name="text">
+          <string>Степень полинома:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QRadioButton" name="noDistRadioButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Не считать</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="2" column="0" rowspan="2">
      <widget class="QGroupBox" name="gridGroupBox">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -790,7 +976,7 @@
       </layout>
      </widget>
     </item>
-    <item row="4" column="1">
+    <item row="3" column="1">
      <widget class="QGroupBox" name="groupBox_2">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -869,163 +1055,6 @@
       </layout>
      </widget>
     </item>
-    <item row="0" column="1" rowspan="4">
-     <widget class="QGroupBox" name="groupBox">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="title">
-       <string>Результаты</string>
-      </property>
-      <layout class="QGridLayout" name="gridLayout_3">
-       <property name="sizeConstraint">
-        <enum>QLayout::SetMaximumSize</enum>
-       </property>
-       <item row="2" column="0">
-        <widget class="QPushButton" name="pushButton_2">
-         <property name="font">
-          <font>
-           <weight>50</weight>
-           <bold>false</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Начать расчёт</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QPushButton" name="pushButton_3">
-         <property name="font">
-          <font>
-           <weight>50</weight>
-           <bold>false</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Очистить</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0" colspan="2">
-        <widget class="QTextEdit" name="textEdit">
-         <property name="minimumSize">
-          <size>
-           <width>600</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="font">
-          <font>
-           <weight>50</weight>
-           <bold>false</bold>
-          </font>
-         </property>
-         <property name="readOnly">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="QGroupBox" name="horizontalGroupBox">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="title">
-       <string>Дисторсия</string>
-      </property>
-      <layout class="QGridLayout" name="gridLayout_6">
-       <property name="leftMargin">
-        <number>30</number>
-       </property>
-       <property name="rightMargin">
-        <number>30</number>
-       </property>
-       <property name="horizontalSpacing">
-        <number>140</number>
-       </property>
-       <item row="0" column="1">
-        <widget class="QRadioButton" name="noDistRadioButton">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="font">
-          <font>
-           <weight>75</weight>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Не считать</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_21">
-         <property name="text">
-          <string>Степень полинома:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QRadioButton" name="distRadioButton">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="font">
-          <font>
-           <weight>75</weight>
-           <bold>true</bold>
-          </font>
-         </property>
-         <property name="text">
-          <string>Считать</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1" alignment="Qt::AlignLeft">
-        <widget class="QComboBox" name="powComboBox">
-         <property name="font">
-          <font>
-           <weight>50</weight>
-           <bold>false</bold>
-          </font>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menuBar">
@@ -1034,7 +1063,7 @@
      <x>0</x>
      <y>0</y>
      <width>1049</width>
-     <height>18</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>

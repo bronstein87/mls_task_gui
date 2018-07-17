@@ -77,7 +77,9 @@ enum X_AXIS_DIRECTION
     UP,
     DOWN,
     LEFT,
-    RIGHT
+    RIGHT,
+    REVERSE_X,
+    REVERSE_Y
 };
 
 class MLSTask : public QObject
@@ -99,7 +101,7 @@ public:
 
     explicit MLSTask(QObject* parent = nullptr);
     void readModelData(const QString& filename, bool skipFirstRow);
-    void readRealData(const QString& filename, bool skipFirstRow);
+    void readRealData(const QString& filename, bool skipFirstRow, bool reverse = false);
     void calculate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
     void fitFocusByLines(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
     void setPixelSize(double _pixelSize) {pixelSize = _pixelSize;}
@@ -138,6 +140,7 @@ private:
     quint32 frameX;
     quint32 frameY;
     QVector <QPointF> frame;
+    QVector <QPointF> initFrame;
     RotateAngles rotAngles;
     DistorsioData distData;
     QList <double> xDistV;

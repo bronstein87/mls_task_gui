@@ -32,7 +32,7 @@ void MLSTask::readModelData(const QString& filename, bool skipFirstRow)
             rotAngles.alphaRotates.append(list[3].toDouble());
             rotAngles.phiRotates.append(list[2].toDouble());
         }
-
+        initFrame = frame;
         file.close();
     }
     else
@@ -41,7 +41,7 @@ void MLSTask::readModelData(const QString& filename, bool skipFirstRow)
     }
 }
 
-void MLSTask::readRealData(const QString& filename, bool skipFirstRow)
+void MLSTask::readRealData(const QString& filename, bool skipFirstRow, bool reverse)
 {
     frame.clear();
     rotAngles.alphaRotates.clear();
@@ -61,19 +61,28 @@ void MLSTask::readRealData(const QString& filename, bool skipFirstRow)
             QStringList list = line.split("\t");
             if (list.size() != rowLength)
                 throw std::logic_error("Неверная строка в каталоге");
-            frame.append(
-                        QPointF((list[0].toDouble() - frameX) * pixelSize,
-                        (list[1].toDouble() - frameY) * pixelSize));
+            if (!reverse)
+            {
+                frame.append(
+                            QPointF((list[0].toDouble() - frameX) * pixelSize,
+                            (list[1].toDouble() - frameY) * pixelSize));
+            }
+            else
+            {
+                frame.append(
+                            QPointF((list[1].toDouble() - frameY) * pixelSize,
+                            (list[0].toDouble() - frameX) * pixelSize));
+            }
+
             double alpha = list[2].toDouble();
             alpha = 95.0 + alpha;
             alpha = -alpha;
             double azimut = list[3].toDouble();
             //            if (frameX != frameY)
-            //                azimut += 180.0;
+            //azimut -= 180.0;
             rotAngles.alphaRotates.append(alpha);
             rotAngles.phiRotates.append(azimut);
         }
-
         file.close();
     }
     else
@@ -113,6 +122,7 @@ void MLSTask::includeAxisDirection (double MStand[3][3], double modifyMStand[3][
         break;
     }
     case LEFT:
+    case REVERSE_X:
     {
         m[0][1] = -1;
         m[1][0] = 1;
@@ -125,8 +135,13 @@ void MLSTask::includeAxisDirection (double MStand[3][3], double modifyMStand[3][
         m[1][0] = -1;
         m[2][2] = 1;
         break;
-    }
 
+    }
+    case REVERSE_Y:
+        m[0][0] = 1;
+        m[1][1] = -1;
+        m[2][2] = 1;
+        break;
     }
     BOKZMath::multiplyMatrix(m, MStand, modifyMStand);
 }
@@ -247,8 +262,8 @@ void MLSTask::calculateMatrixDynamicaly(StandAngles ang, double alpha, double ph
     rotateOX(ang.gammaOX, MgammaOY, MgammaOX);
 
     // матрица ССК-СК1
-   // double MfirstPlatfOX[3][3];
-   //rotateOX(ang.lambdaOX, Minit, MfirstPlatfOX);
+    // double MfirstPlatfOX[3][3];
+    //rotateOX(ang.lambdaOX, Minit, MfirstPlatfOX);
     double Mx[3][3];
     rotateOZ(alpha, Minit, Mx);
 
@@ -324,7 +339,9 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     ang.alphaTwoOX = results.alphaTwoOX * degreesToRad;
 
 
-    double collimator[3] {-(cos(ang.lambdaOY) * cos(ang.lambdaOX)), -(cos(ang.lambdaOY) * sin(ang.lambdaOX)), -sin(ang.lambdaOY)};
+    double collimator[3] {-(cos(ang.lambdaOY) * cos(ang.lambdaOX)),
+                -(cos(ang.lambdaOY) * sin(ang.lambdaOX)),
+                -sin(ang.lambdaOY)};
     double collimatorDer[3];
 
     QVector <double> Xst;
@@ -377,6 +394,10 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
 
             DFR[k] = (double)(Xst[j] - X);
             DFR[l] = (double)(Yst[j] - Y);
+            //            if (DFR[k] > 0.5 || DFR[l] > 0.5)
+            //            {
+            //                qDebug() << DFR[k] << DFR[l] << j;
+            //            }
 
 
             if (derivativeFlags.at(DERIVATIVES::LAMBDA_OY))
@@ -561,28 +582,28 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
             focus += ANGD[numP++];
         }
 
-//        if(fabs((ang.lambdaOY * radToDegrees) - results.lambdaOY) > 2)
-//            ang.lambdaOY = results.lambdaOY * degreesToRad;
+        //        if(fabs((ang.lambdaOY * radToDegrees) - results.lambdaOY) > 2)
+        //            ang.lambdaOY = results.lambdaOY * degreesToRad;
 
-//        if(fabs((ang.lambdaOX * radToDegrees) - results.lambdaOX)  > 10)
-//            ang.lambdaOX = results.lambdaOX * degreesToRad;
+        //        if(fabs((ang.lambdaOX * radToDegrees) - results.lambdaOX)  > 10)
+        //            ang.lambdaOX = results.lambdaOX * degreesToRad;
 
-//        if(fabs((ang.alphaTwoOY * radToDegrees) - results.alphaTwoOY) > 2)
-//            ang.alphaTwoOY = results.alphaTwoOY * degreesToRad;
+        //        if(fabs((ang.alphaTwoOY * radToDegrees) - results.alphaTwoOY) > 2)
+        //            ang.alphaTwoOY = results.alphaTwoOY * degreesToRad;
 
-//        if(fabs((ang.alphaTwoOX * radToDegrees) - results.alphaTwoOX) > 2)
-//            ang.alphaTwoOX = results.alphaTwoOX * degreesToRad;
+        //        if(fabs((ang.alphaTwoOX * radToDegrees) - results.alphaTwoOX) > 2)
+        //            ang.alphaTwoOX = results.alphaTwoOX * degreesToRad;
 
-//        if(fabs((ang.gammaOZ * radToDegrees) - results.gammaOZ) > 2)
-//            ang.gammaOZ = results.gammaOZ * degreesToRad;
+        //        if(fabs((ang.gammaOZ * radToDegrees) - results.gammaOZ) > 2)
+        //            ang.gammaOZ = results.gammaOZ * degreesToRad;
 
-//        if(fabs((ang.gammaOY * radToDegrees) - results.gammaOY) > 6)
-//            ang.gammaOY = results.gammaOY * degreesToRad;
+        //        if(fabs((ang.gammaOY * radToDegrees) - results.gammaOY) > 6)
+        //            ang.gammaOY = results.gammaOY * degreesToRad;
 
-//        if(fabs((ang.gammaOX * radToDegrees)- results.gammaOX) > 6)
-//            ang.gammaOX = results.gammaOX *  degreesToRad;
+        //        if(fabs((ang.gammaOX * radToDegrees)- results.gammaOX) > 6)
+        //            ang.gammaOX = results.gammaOX *  degreesToRad;
 
-//        if(fabs(focus - results.foc) > 1) focus = results.foc;
+        //        if(fabs(focus - results.foc) > 1) focus = results.foc;
 
         //это тоже не влияет
 
@@ -590,9 +611,9 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
         collimator[1] = -(cos(ang.lambdaOY) * sin(ang.lambdaOX));
         collimator[2] = -sin(ang.lambdaOY);
 
-//        collimator[0] = -cos(ang.lambdaOY);
-//        collimator[1] = 0;
-//        collimator[2] = -sin(ang.lambdaOY);
+        //        collimator[0] = -cos(ang.lambdaOY);
+        //        collimator[1] = 0;
+        //        collimator[2] = -sin(ang.lambdaOY);
         clk++;
     }
     while ((fabs(mxy - mxy_pr) > maxError)
@@ -721,17 +742,14 @@ void MLSTask::saveShifts(const QString& prefix)
     if (coords.open(QIODevice::WriteOnly))
     {
         QTextStream out(&coords);
+        out << QString("x_init y_init dx dy\n");
         for (int i = 0; i < distData.x.size(); i++)
         {
-            out << QString("%1 %2 %3 %4 %5 %6 %7 %8\n")
-                   .arg(frame[i].x())
-                   .arg(frame[i].y())
+            out << QString("%1\t%2\t%3\t%4\n")
                    .arg(distData.x[i])
                    .arg(distData.y[i])
                    .arg(distData.dx[i])
-                   .arg(distData.dy[i])
-                   .arg(distData.dx_diff[i])
-                   .arg(distData.dy_diff[i]);
+                   .arg(distData.dy[i]);
         }
     }
 }
