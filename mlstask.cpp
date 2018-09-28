@@ -56,11 +56,12 @@ void MLSTask::readRealData(const QString& filename, bool skipFirstRow, bool reve
         {
             in.readLineInto(&line);
         }
-        while(in.readLineInto(&line))
+        while (in.readLineInto(&line))
         {
             QStringList list = line.split("\t");
             if (list.size() != rowLength)
                 throw std::logic_error("Неверная строка в каталоге");
+
             if (!reverse)
             {
                 frame.append(
@@ -83,6 +84,7 @@ void MLSTask::readRealData(const QString& filename, bool skipFirstRow, bool reve
             rotAngles.alphaRotates.append(alpha);
             rotAngles.phiRotates.append(azimut);
         }
+        initFrame = frame;
         file.close();
     }
     else
@@ -107,41 +109,41 @@ void MLSTask::includeAxisDirection (double MStand[3][3], double modifyMStand[3][
     double m[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
     switch (d)
     {
-    case UP:
-    {
-        m[0][0] = 1;
-        m[1][1] = 1;
-        m[2][2] = 1;
-        break;
-    }
-    case DOWN:
-    {
-        m[0][0] = -1;
-        m[1][1] = -1;
-        m[2][2] = 1;
-        break;
-    }
-    case LEFT:
-    case REVERSE_X:
-    {
-        m[0][1] = -1;
-        m[1][0] = 1;
-        m[2][2] = 1;
-        break;
-    }
-    case RIGHT:
-    {
-        m[0][1] = 1;
-        m[1][0] = -1;
-        m[2][2] = 1;
-        break;
+        case UP:
+        {
+            m[0][0] = 1;
+            m[1][1] = 1;
+            m[2][2] = 1;
+            break;
+        }
+        case DOWN:
+        {
+            m[0][0] = -1;
+            m[1][1] = -1;
+            m[2][2] = 1;
+            break;
+        }
+        case LEFT:
+        case REVERSE_X:
+        {
+            m[0][1] = -1;
+            m[1][0] = 1;
+            m[2][2] = 1;
+            break;
+        }
+        case RIGHT:
+        {
+            m[0][1] = 1;
+            m[1][0] = -1;
+            m[2][2] = 1;
+            break;
 
-    }
-    case REVERSE_Y:
-        m[0][0] = 1;
-        m[1][1] = -1;
-        m[2][2] = 1;
-        break;
+        }
+        case REVERSE_Y:
+            m[0][0] = 1;
+            m[1][1] = -1;
+            m[2][2] = 1;
+            break;
     }
     BOKZMath::multiplyMatrix(m, MStand, modifyMStand);
 }
@@ -692,6 +694,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
     distData.y.clear();
     distData.dx.clear();
     distData.dy.clear();
+
     //qDebug() << "рассогласования";
     for (int i = 0; i < Nst; i++)
     {
@@ -719,7 +722,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
 
 void MLSTask::findDistorsio(int nPow)
 {
-    FindDistCft(nPow, distData.x, distData.y, distData.dx, distData.dy);
+    findDistCft(nPow, distData.x, distData.y, distData.dx, distData.dy);
 }
 
 
@@ -746,8 +749,8 @@ void MLSTask::saveShifts(const QString& prefix)
         for (int i = 0; i < distData.x.size(); i++)
         {
             out << QString("%1\t%2\t%3\t%4\n")
-                   .arg(distData.x[i])
-                   .arg(distData.y[i])
+                   .arg(initFrame[i].x())
+                   .arg(initFrame[i].y())
                    .arg(distData.dx[i])
                    .arg(distData.dy[i]);
         }
@@ -851,7 +854,21 @@ QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, do
     return retLineVec;
 }
 
-void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QVector <double>& dx, QVector <double>& dy)
+ShiftData MLSTask::getShiftData() const
+{
+    ShiftData data;
+    for (int i = 0; i < initFrame.size(); i++)
+    {
+        data.x.append(initFrame[i].x());
+        data.y.append(initFrame[i].y());
+        data.dx.append(distData.dx[i]);
+        data.dy.append(distData.dy[i]);
+        data.azimut.append(rotAngles.phiRotates[i]);
+    }
+    return data;
+}
+
+void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QVector <double>& dx, QVector <double>& dy)
 {
     double CX[maxParams], CY[maxParams],B[maxParams][maxParams],
             B_1[maxParams][maxParams], AX[maxParams], AY[maxParams];
@@ -872,15 +889,15 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
 
     switch (Npow)
     {
-    case 2: Ncft=6;  break;
-    case 3: Ncft=10; break;
-    case 4: Ncft=15; break;
-    case 5: Ncft=21; break;
-    case 6: Ncft=28; break;
-    case 7: Ncft=36; break;
-    case 8: Ncft=45; break;
-    case 9: Ncft=55; break;
-    default: Npow=3; Ncft=10; break;
+        case 2: Ncft=6;  break;
+        case 3: Ncft=10; break;
+        case 4: Ncft=15; break;
+        case 5: Ncft=21; break;
+        case 6: Ncft=28; break;
+        case 7: Ncft=36; break;
+        case 8: Ncft=45; break;
+        case 9: Ncft=55; break;
+        default: Npow=3; Ncft=10; break;
     }
 
 
@@ -1004,7 +1021,7 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
 
     }
 
-    gaus_obr(Ncft,B,B_1);    //(A^T*A)^(-1)
+    gaussObr(Ncft,B,B_1);    //(A^T*A)^(-1)
 
     for (int i = Ncft; i < maxParams; i++)
     {
@@ -1047,8 +1064,8 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
     //        }
     //    }
 
-    distData.dx_diff.clear();
-    distData.dy_diff.clear();
+    distData.dxDiff.clear();
+    distData.dyDiff.clear();
     for (int i = 0; i < x.size(); i++)
     {
 
@@ -1090,8 +1107,8 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
 
         double dx_new = dx[i] - XP;
         double dy_new = dy[i] - YP;
-        distData.dx_diff.append(dx_new);
-        distData.dy_diff.append(dy_new);
+        distData.dxDiff.append(dx_new);
+        distData.dyDiff.append(dy_new);
         //        qDebug() << dx_new << dy_new;
         // mean_x.append(fabs(dx_new));
         // mean_y.append(fabs(dy_new));
@@ -1100,46 +1117,46 @@ void MLSTask::FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
 }
 
 
-int MLSTask::gaus_obr(int cnt_str,double mass[55][55],double M_obr[55][55])
+int MLSTask::gaussObr(int cntStar,double mass[55][55],double mObr[55][55])
 {
     int i,j,k;
     double a,b;
     double sum;
 
-    for(i=0;i<cnt_str;i++)
+    for(i=0;i<cntStar;i++)
     {
-        for(j=0;j<cnt_str;j++)
-            M_obr[i][j]=0;
-        M_obr[i][i]=1;
+        for(j=0;j<cntStar;j++)
+            mObr[i][j]=0;
+        mObr[i][i]=1;
     }
 
-    for(i=0;i<cnt_str;i++)
+    for(i=0;i<cntStar;i++)
     {
         a=mass[i][i];
         if (fabs(a)<1e-38) return 0;
-        for(j=i+1;j<cnt_str;j++)
+        for(j=i+1;j<cntStar;j++)
         {
             b=mass[j][i];
-            for(k=0;k<cnt_str;k++)
+            for(k=0;k<cntStar;k++)
             {
                 mass[j][k]=mass[j][k]-mass[i][k]*b/a;
-                M_obr[j][k]=M_obr[j][k]-M_obr[i][k]*b/a;
+                mObr[j][k]=mObr[j][k]-mObr[i][k]*b/a;
             }
         }
     }
 
-    for(i=0;i<cnt_str;i++)
+    for(i=0;i<cntStar;i++)
     {
-        for(j=cnt_str-1;j>=0;j--)
+        for(j=cntStar-1;j>=0;j--)
         {
             sum=0;
-            for(k=cnt_str-1;k>j;k--)
-                sum+=mass[j][k]*M_obr[k][i];
+            for(k=cntStar-1;k>j;k--)
+                sum+=mass[j][k]*mObr[k][i];
             if(mass[j][j]==0)
             {
                 return 0;
             }
-            M_obr[j][i]=(M_obr[j][i]-sum)/mass[j][j];
+            mObr[j][i]=(mObr[j][i]-sum)/mass[j][j];
         }
     }
     return 1;

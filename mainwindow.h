@@ -9,6 +9,15 @@
 #include <QSettings>
 #include <QDebug>
 #include <algorithm>
+#include <customplot/cxyplotter.h>
+#include <QMessageBox>
+
+struct PointDiff
+{
+    QCPGraph* graph;
+    QCPItemTracer* tracer;
+};
+
 using namespace std;
 namespace Ui {
 class MainWindow;
@@ -19,7 +28,7 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = 0);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
@@ -31,23 +40,44 @@ private slots:
 
     void on_chooseRawFilesPushButton_clicked();
 
+    void on_saveToolButton_clicked();
+
+    void on_removeToolButton_clicked();
+
+    void on_startToolButton_clicked();
+
 private:
-    void joinMeasureFiles();
+
     bool checkChoose();
+
     void saveSettings();
+
     void loadSettings();
+
     void printResults(Results& res);
+
     void printErrors(ResultErrors& err);
+
     void saveErrors(ResultErrors& err);
+
     void printAngles (const QString& before, const QString& after);
+
     void saveResults(Results& res);
 
     QBitArray setFlags();
+
     Results setFirstApprox();
+
+
     Ui::MainWindow *ui;
+    QScopedPointer <CXYPlotter> plotter;
+    QVector <PointDiff> diffPlotInfo;
     QString fileName;
     MLSTask task;
     QSettings* settings = nullptr;
+    bool editStarted = false;
+    QStringList editingList;
+    qint32 selectedIndex = 0;
 };
 
 #endif // MAINWINDOW_H

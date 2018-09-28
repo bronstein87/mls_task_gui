@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
@@ -10,6 +11,14 @@ MainWindow::MainWindow(QWidget *parent) :
     loadSettings();
     ui->powComboBox->addItems(QStringList {"3", "5"});
     ui->formatTypeComboBox->addItems(QStringList{"Формат №1", "Формат №2(Никитин)"});
+    plotter.reset (new CXYPlotter(ui->plot));
+    plotter->setGraphName("Рассогласования");
+    plotter->setAxisXName("X, пикс");
+    plotter->setAxisYName("Y, пикс");
+    plotter->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom | QCP::iSelectItems | QCP::iSelectPlottables| QCP::iSelectLegend);
+    plotter->setSelectable(QCP::SelectionType::stNone);
+    plotter->setUseLegend(false);
+    plotter->setAutoReplot(false);
 
 }
 
@@ -45,6 +54,7 @@ void MainWindow::saveSettings()
     settings->setValue("reverse", ui->reverseCheckBox->isChecked());
     settings->setValue("real_data", ui->realDataRadioButton->isChecked());
     settings->setValue("model_data", ui->modelRadioButton->isChecked());
+    settings->setValue("scale", ui->scaleSpinBox->value());
     settings->sync();
 
 }
@@ -75,6 +85,7 @@ void MainWindow::loadSettings()
     ui->reverseCheckBox->setChecked(settings->value("reverse").toBool());
     ui->realDataRadioButton->setChecked(settings->value("real_data").toBool());
     ui->modelRadioButton->setChecked(settings->value("model_data").toBool());
+    ui->scaleSpinBox->setValue(settings->value("scale").toInt());
 }
 
 void MainWindow::on_pushButton_clicked()
@@ -223,8 +234,8 @@ void MainWindow::on_pushButton_2_clicked()
             return;
         }
 
-        quint32 frameX = ui->xMatrixSpinBox->value() / 2;
-        quint32 frameY = ui->yMatrixSpinBox->value() / 2;
+        qint32 frameX = ui->xMatrixSpinBox->value() / 2;
+        qint32 frameY = ui->yMatrixSpinBox->value() / 2;
         double pixSize = ui->pixSizeSpinBox->value();
         task.clearAll();
         task.setFrameSize(frameX, frameY);
@@ -282,7 +293,7 @@ void MainWindow::on_pushButton_2_clicked()
         QVector <QString> angAfterDist;
         if (ui->distRadioButton->isChecked())
         {
-            quint32 pow = ui->powComboBox->currentText().toInt();
+            qint32 pow = ui->powComboBox->currentText().toInt();
             task.findDistorsio(pow);
             task.saveDistorsio();
             task.includeDistorsio();
@@ -293,6 +304,49 @@ void MainWindow::on_pushButton_2_clicked()
             ui->textEdit->append(angAfterDist[0]);
             task.saveShifts("after_dist");
         }
+
+        ShiftData shiftData = task.getShiftData();
+        ui->plot->clearPlottables();
+        ui->plot->clearItems();
+        plotter->setRangeAxisX(-frameX, frameX);
+        plotter->setRangeAxisY(-frameY, frameY);
+        plotter->setStyle(QCPGraph::LineStyle::lsLine, QCPScatterStyle::ssStar);
+
+        for (int i = 0; i < shiftData.dx.size(); i++)
+        {
+            shiftData.x[i] = shiftData.x[i] / pixSize; //+ frameX;
+            shiftData.dx[i] = shiftData.dx[i] / pixSize; //+ frameX;
+            shiftData.dx[i] *= ui->scaleSpinBox->value();
+            shiftData.y[i] = shiftData.y[i] / pixSize;// + frameY;
+            shiftData.dy[i] = shiftData.dy[i] / pixSize;// + frameY;
+            shiftData.dy[i] *= ui->scaleSpinBox->value();
+            QVector <double> x {shiftData.x[i], shiftData.x[i] + shiftData.dx[i]};
+            QVector <double> y {shiftData.y[i], shiftData.y[i] + shiftData.dy[i]};
+            plotter->addDefaultGraph(y, x, false);
+            qint32 colorIndex = static_cast <qint32> (shiftData.azimut[i]);
+            QCPItemTracer* tracer = plotter->setTracer(ui->plot->graphCount() - 1, x[0], colorIndex, true);
+            connect(tracer, &QCPItemTracer::selectionChanged, [this, tracer](bool selected) {
+
+                if (selected)
+                {
+                    for (int i = 0; i < ui->plot->graphCount(); i++)
+                    {
+                        if (ui->plot->graph(i) == tracer->graph())
+                        {
+                            selectedIndex = tracer->graph()->findBegin(tracer->graphKey());
+                            Q_ASSERT(qFuzzyCompare(tracer->graphKey(), tracer->graph()->dataSortKey(selectedIndex)));
+                            ui->choosedPointInfoLabel->setText(QString("X: %1 Y: %2 Индекс: %3")
+                                                               .arg(tracer->graphKey() + (ui->xMatrixSpinBox->value() / 2))
+                                                               .arg(tracer->graph()->dataMainValue(selectedIndex) + (ui->yMatrixSpinBox->value() / 2))
+                                                               .arg(i));
+
+                        }
+                    }
+                }
+            });
+        }
+        ui->plot->replot();
+
         printResults(results);
         printErrors(errors);
 
@@ -320,10 +374,6 @@ void MainWindow::on_pushButton_3_clicked()
 }
 
 
-void MainWindow::joinMeasureFiles()
-{
-
-}
 
 void MainWindow::on_chooseRawFilesPushButton_clicked()
 {
@@ -368,7 +418,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     for (int i = 0; i < coordFilesData.size(); i++)
     {
 
-        quint32 pos =
+        qint32 pos =
                 coordFilesData[i][13].indexOf(QRegExp("(\\\\)(?!.*\\\\)"));
         coordFilesData[i][13] =
                 coordFilesData[i][13].mid(pos);
@@ -398,7 +448,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     for (int i = 0; i < anglesFilesData.size(); i++)
     {
 
-        quint32 pos =
+        qint32 pos =
                 anglesFilesData[i][1].indexOf(QRegExp("(\\\\)(?!.*\\\\)"));//QRegExp("\\\\(?:(?!\\\\))\\d\\d\\.")
         anglesFilesData[i][1] =
                 anglesFilesData[i][1].mid(pos);
@@ -407,7 +457,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     sort(anglesFilesData.begin(), anglesFilesData.end(), [](auto& a, auto& b){return a[1] < b[1];});
 
     QVector <QStringList> resFilesData;
-    quint32 pos = 0;
+    qint32 pos = 0;
     bool flag = false;
     for (int i = 0; i < coordFilesData.size(); i++)
     {
@@ -463,3 +513,64 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     }
 }
 
+
+
+void MainWindow::on_saveToolButton_clicked()
+{
+    if (editStarted)
+    {
+       QFile file ("modifiedPointList.txt");
+       if (file.open(QIODevice::WriteOnly))
+       {
+           QTextStream out (&file);
+           out << "X	Y	Alpha	Azimut\n";
+           for (int i = 0; i < editingList.size(); i++)
+           {
+               out << editingList[i] << "\n";
+           }
+       }
+       file.close();
+    }
+    editStarted = false;
+}
+
+void MainWindow::on_removeToolButton_clicked()
+{
+    if (editStarted)
+    {
+        auto list = ui->plot->selectedItems();
+        if (!list.isEmpty())
+        {
+             QCPItemTracer* tracer = static_cast <QCPItemTracer*> (list.first());
+             ui->plot->removeGraph(tracer->graph());
+             ui->plot->removeItem(tracer);
+             editingList.removeAt(selectedIndex);
+             ui->plot->replot();
+        }
+    }
+    else
+    {
+        QMessageBox::information(nullptr, tr("Ошибка"), tr("Сначала начните редактирование исходного файла."));
+    }
+}
+
+void MainWindow::on_startToolButton_clicked()
+{
+    QFile file (ui->pathLineEdit->text());
+    if (file.open(QIODevice::ReadOnly))
+    {
+        QTextStream in (&file);
+        QString line;
+        in.readLineInto(&line);
+        while (in.readLineInto(&line))
+        {
+            editingList.append(line);
+        }
+        file.close();
+        editStarted = true;
+    }
+    else
+    {
+        QMessageBox::information(nullptr, tr("Ошибка"), tr("Не удалось открыть исходный файл."));
+    }
+}

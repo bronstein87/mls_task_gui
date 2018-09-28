@@ -1,6 +1,7 @@
 #include "gms.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <QtGlobal>
 
 
 
@@ -80,13 +81,13 @@ double GMS::transToRad()
 
 
 
-void GMS::setGradus(const qint32  _gradus)
+void GMS::setGradus(const qint32 _gradus)
 {
     gradus = _gradus;
 }
 
 
-void GMS::setMinutes(const qint32  _minutes)
+void GMS::setMinutes(const qint32 _minutes)
 {
     minutes = _minutes;
 }
@@ -105,16 +106,16 @@ bool GMS::checkStringGMSAngle(const QString& angle_string)
     {
         return false;
     }
-    QStringList split_angle_string = angle_string.split(" ");
+    QStringList splitAngleString = angle_string.split(" ");
 
-    if (split_angle_string.size() < 3)
+    if (splitAngleString.size() < 3)
     {
         return false;
     }
-    qint32 minutes = split_angle_string.at(1).toInt();
-    double seconds = split_angle_string.at(2).toDouble();
+    qint32 minutes = splitAngleString.at(1).toInt();
+    double seconds = splitAngleString.at(2).toDouble();
 
-    if (minutes > 60
+    if  (minutes > 60
             || minutes < 0
             || seconds > 60
             || seconds < 0)
@@ -136,5 +137,7 @@ QDebug operator<< (QDebug d, const GMS &data)
 
 bool GMS::isEmpty() const
 {
-    return !gradus && !minutes && !seconds;
+    return !qFuzzyCompare(gradus, 0.0)
+            && !qFuzzyCompare(minutes, 0.0)
+            && !qFuzzyCompare(seconds, 0.0);
 }

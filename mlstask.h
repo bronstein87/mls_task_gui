@@ -67,8 +67,17 @@ struct DistorsioData
     QVector <double> y;
     QVector <double> dx;
     QVector <double> dy;
-    QVector <double> dx_diff;
-    QVector <double> dy_diff;
+    QVector <double> dxDiff;
+    QVector <double> dyDiff;
+};
+
+struct ShiftData
+{
+    QVector <double> x;
+    QVector <double> y;
+    QVector <double> dx;
+    QVector <double> dy;
+    QVector <double> azimut;
 };
 
 
@@ -97,43 +106,79 @@ class MLSTask : public QObject
         double gammaOX = 0;
     };
 
+
+
 public:
 
     explicit MLSTask(QObject* parent = nullptr);
+
     void readModelData(const QString& filename, bool skipFirstRow);
+
     void readRealData(const QString& filename, bool skipFirstRow, bool reverse = false);
+
     void calculate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
+
     void fitFocusByLines(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
+
     void setPixelSize(double _pixelSize) {pixelSize = _pixelSize;}
+
     void setFrameSize(quint32 x, quint32 y) {frameX = x; frameY = y;}
+
     void setMeasureTheshold(quint32 th){thershold = th;}
+
     void findDistorsio(int nPow);
+
     void saveDistorsio();
+
     void saveShifts(const QString& prefix);
+
     void includeDistorsio();
+
     QVector<QString> printTestTable(const QString& filename, bool dist, double focus);
+
     QList <double> getDistX() const {return xDistV;}
+
     QList <double> getDistY() const {return yDistV;}
+
+    ShiftData getShiftData() const;
+
     void setAxisDirection(X_AXIS_DIRECTION dir) {d = dir;}
-    void clearAll(){frame.clear();xDistV.clear();yDistV.clear();distData.x.clear();distData.y.clear();distData.dx.clear();distData.dy.clear();}
+
+    void clearAll(){frame.clear(); xDistV.clear(); yDistV.clear();
+                    distData.x.clear(); distData.y.clear(); distData.dx.clear(); distData.dy.clear();}
 
 private:
     void includeAxisDirection (double MStand[3][3], double modifyMStand[3][3], X_AXIS_DIRECTION d = X_AXIS_DIRECTION::UP);
+
     void calculatePrivate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors, const RotateAngles& rotAngles, QVector<QPointF>& frame);
-    void FindDistCft(int Npow, QVector <double>& x, QVector <double>& y, QVector <double>& dx, QVector <double>& dy);
+
+    void findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QVector <double>& dx, QVector <double>& dy);
+
     void calculateXY(double Mstand[3][3], double collimator[3], double focus, double& X, double& Y);
+
     void calculateMatrix(StandAngles ang, double alpha, double phi, double Mstand[3][3]);
+
     void calculateMatrixDynamicaly(StandAngles ang, double alpha, double phi, double Mstand[3][3]);
+
     double calculate11El(StandAngles ang, double alpha, double phi);
+
     double calculate21El(StandAngles ang, double alpha, double phi);
+
     double calculate31El(StandAngles ang, double alpha, double phi);
+
     double calculate12El(StandAngles ang, double alpha, double phi);
+
     double calculate22El(StandAngles ang, double alpha, double phi);
+
     double calculate32El(StandAngles ang, double alpha, double phi);
+
     double calculate13El(StandAngles ang, double alpha, double phi);
+
     double calculate23El(StandAngles ang, double alpha, double phi);
+
     double calculate33El(StandAngles ang, double alpha, double phi);
-    int gaus_obr(int cnt_str, double mass[55][55], double M_obr[55][55]);
+
+    int gaussObr(int cntStar, double mass[55][55], double mObr[55][55]);
 
     double pixelSize;
     quint32 thershold = 2;

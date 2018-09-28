@@ -1,5 +1,4 @@
 #include <mathfunc.h>
-#include <qDebug>
 
 namespace BOKZMath {
 
@@ -880,7 +879,7 @@ void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem)
 {
 
     double DET, DET_1;
-    short i,j,k;
+    short i,j;
 
     double **MH = new double* [nElem];
     for (int count = 0; count < nElem; count++)

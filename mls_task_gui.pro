@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui printsupport
 CONFIG += c++14
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -28,13 +28,23 @@ SOURCES += \
         mainwindow.cpp \
     mlstask.cpp \
     mathfunc.cpp \
-    gms.cpp
+    gms.cpp \
+    customplot/cplotter.cpp \
+    customplot/cxyplotter.cpp \
+    customplot/qcustomplot.cpp
 
 HEADERS += \
         mainwindow.h \
     mlstask.h \
     mathfunc.h \
-    gms.h
+    gms.h \
+    customplot/qcustomplot.h \
+    customplot/cplotter.h \
+    customplot/cxyplotter.h \
+    goodcolors.h
 
 FORMS += \
         mainwindow.ui
+
+RESOURCES += \
+    resources.qrc
