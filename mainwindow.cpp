@@ -297,7 +297,22 @@ void MainWindow::on_pushButton_2_clicked()
             task.findDistorsio(pow);
             task.saveDistorsio();
             task.includeDistorsio();
-            flags.setBit(DERIVATIVES::FOCUS, false);
+            qint32 setFlags = 0;
+            for (int i = 0; i < flags.count(); i++)
+            {
+                if (flags.at(i))
+                {
+                    setFlags++;
+                }
+            }
+            if (setFlags == 1 && flags.at(DERIVATIVES::FOCUS))
+            {
+                flags.setBit(DERIVATIVES::FOCUS, true);
+            }
+            else
+            {
+                flags.setBit(DERIVATIVES::FOCUS, false);
+            }
             task.calculate(flags, results, errors);
             angAfterDist = task.printTestTable("ang_distance_after_dist.txt", true, results.foc);
             ui->textEdit->append("\nУглы после дисторсии:\n");
@@ -519,17 +534,17 @@ void MainWindow::on_saveToolButton_clicked()
 {
     if (editStarted)
     {
-       QFile file ("modifiedPointList.txt");
-       if (file.open(QIODevice::WriteOnly))
-       {
-           QTextStream out (&file);
-           out << "X	Y	Alpha	Azimut\n";
-           for (int i = 0; i < editingList.size(); i++)
-           {
-               out << editingList[i] << "\n";
-           }
-       }
-       file.close();
+        QFile file ("modifiedPointList.txt");
+        if (file.open(QIODevice::WriteOnly))
+        {
+            QTextStream out (&file);
+            out << "X	Y	Alpha	Azimut\n";
+            for (int i = 0; i < editingList.size(); i++)
+            {
+                out << editingList[i] << "\n";
+            }
+        }
+        file.close();
     }
     editStarted = false;
 }
@@ -541,11 +556,11 @@ void MainWindow::on_removeToolButton_clicked()
         auto list = ui->plot->selectedItems();
         if (!list.isEmpty())
         {
-             QCPItemTracer* tracer = static_cast <QCPItemTracer*> (list.first());
-             ui->plot->removeGraph(tracer->graph());
-             ui->plot->removeItem(tracer);
-             editingList.removeAt(selectedIndex);
-             ui->plot->replot();
+            QCPItemTracer* tracer = static_cast <QCPItemTracer*> (list.first());
+            ui->plot->removeGraph(tracer->graph());
+            ui->plot->removeItem(tracer);
+            editingList.removeAt(selectedIndex);
+            ui->plot->replot();
         }
     }
     else
