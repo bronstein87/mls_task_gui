@@ -9,7 +9,7 @@
 #include <QVector>
 
 
-typedef int (*CorrectBoardQuat)(wchar_t *patch_cat, /*Имя папки c бортовыми каталогами*/
+typedef int (*CorrectBoardQuatResurs)(wchar_t *patch_cat, /*Имя папки c бортовыми каталогами*/
                                 wchar_t *patch_dtmi, /*Имя папки для создания файлов с тестовой информацией, если NULL - файлы не создаются*/
                                 double ArrBokz[][8], /*Массив кватернионов*/
 unsigned int &nBokz, /*Число измерений кватернионов*/
@@ -21,13 +21,23 @@ unsigned int nVect, /*Размер массива ПДСМ*/
 unsigned int &CurrentIndex, /*Текущий индекс массива кватернионов*/
 unsigned char &Stop); /*Признак останова программы*/
 
+typedef int (*CorrectBoardQuatBARS)(wchar_t *patch_cat, /*Имя папки c бортовыми каталогами*/
+                                wchar_t *patch_dtmi, /*Имя папки для создания файлов с тестовой информацией, если NULL - файлы не создаются*/
+                                double ArrBokz[][13], /*Массив кватернионов*/
+unsigned int &nBokz, /*Число измерений кватернионов*/
+unsigned int nBokzMax, /*Макс. размер массива кватернионов*/
+float ArrLoc[][77], /*Массив локализованных объектов*/
+unsigned int nLoc, /*Размер массива локализованных объектов*/
+const double ArrVect[][18], /*Массив ПДСМ*/
+unsigned int nVect, /*Размер массива ПДСМ*/
+unsigned int &CurrentIndex, /*Текущий индекс массива кватернионов*/
+unsigned char &Stop); /*Признак останова программы*/
 
-
-enum AXIS_TYPE
+enum AxisType
 {
-    X_AXIS,
-    Y_AXIS,
-    Z_AXIS
+    xAxis,
+    yAxis,
+    zAxis
 };
 
 struct RecognizedInfo
@@ -42,6 +52,8 @@ struct RecognizedInfo
 namespace BOKZMath {
 
 constexpr const double mSecsInSec = 1000;
+constexpr const double secsInDay = 86400;
+constexpr const double mSecsInDay = 86400000;
 constexpr const double radToAngularMin = 3437.7467747131374;
 constexpr const double radToDegrees = 57.29577957855229;
 constexpr const double degreesToRad = 0.0174532925;
@@ -52,19 +64,18 @@ constexpr const double secOfTimeToArcSec = 360. / 86400. * 3600.;
 constexpr const double arcMSecToDegree =  1. / (3600 * 1000);
 constexpr const double arcSecToDegree =  1. / 3600;
 
-float correctDTMIFloat(float element) noexcept;
 
 void correctLocArray(float locArray[16][4]) noexcept;
 
 void correctAngularVArray(float Wo[3]) noexcept;
 
-quint32 correctDTMIInt(quint32 incrTimePr) noexcept;
+void swapShort(void* value) noexcept;
 
 double calculateJulianDate(const QDateTime& dateTime) noexcept;
 
 double calculateJulianCenturies(const QDateTime& dateTime) noexcept;
 
-void multiplyMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept;
+void multMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept;
 
 double calculateDatePr(const QDateTime& dateTime, int timePr) noexcept;
 
@@ -85,21 +96,21 @@ void  transSpeedGSKtoISK(double JD, double CG[3], double VG[3], double VI[3]) no
 
 void  transCoordsGSKtoISK(double JD, double CG[3], double CI[3]) noexcept;
 
-void quatToMatr(const double Quat[], double M_ornt[3][3]) noexcept;
+void quatToMatr(const double Quat[], double mOrnt[3][3]) noexcept;
 
 double atan2m(double yf,double xf) noexcept;
 
-void matrToEkvA(double M_ornt[3][3], double& al, double& dl, double& Az) noexcept;
+void matrToEkvA(double mOrnt[3][3], double& al, double& dl, double& Az, AxisType axis = AxisType::zAxis) noexcept;
 
-void quatToEkvA(const double Quat[4], double EkvA[3]) noexcept;
+void quatToEkvA(const double Quat[4], double EkvA[3], AxisType axis = AxisType::zAxis) noexcept;
 
 double acosm(double xf) noexcept;
 
 void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept;
 
-void getAngularDisplacementFromOrientMatr(const double M_ornt_pr[3][3],const double M_ornt[3][3], double Wop [3]) noexcept;
+void getAngularDisplacementFromOrientMatr(const double mOrnt_pr[3][3],const double mOrnt[3][3], double Wop [3]) noexcept;
 
-double calculateAngleAxis(const double quat1[], const double quat2[], AXIS_TYPE axis) noexcept;
+double calculateAngleAxis(const double quat1[], const double quat2[], AxisType axis) noexcept;
 
 QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, const QVector <float>& firstX,const QVector <float>& firstY,const QVector <float>& secondX,const QVector <float>& secondY) noexcept;
 
@@ -109,45 +120,49 @@ qint64 roundUp(qint64 numToRound, qint64 multiple) noexcept;
 
 QDateTime timePrToDateTime(const double timePr, const QDateTime& timePrStartData) noexcept;
 
-QDateTime timePrToDateTime(const quint32 timePr, const QDateTime& timePrStartData) noexcept;
+QDateTime timePrToDateTime(const qint32 timePr, const QDateTime& timePrStartData) noexcept;
 
 QDateTime timePrToDateTime(const quint64 timePr, const QDateTime& timePrStartData) noexcept;
 
-QVector< QVector<float> > calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut) noexcept;
+QVector< QVector<double> > calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut) noexcept;
 
 void calculateDirectionVector(double alpha, double delta, double& l, double& m, double& n);
 
-void calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut, double M_ornt[3][3]) noexcept;
+void calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut, double mOrnt[3][3]) noexcept;
 
-double calculateScalarProduct(double l_oz, double l_st, double m_oz, double m_st, double n_oz, double n_st) noexcept;
+double calculateScalarProduct(double lOz, double lSt, double mOz, double mSt, double nOz, double nSt) noexcept;
+
+double calculateScalarProductAngles(double anglesFirst[3], double anglesSecond[3]);
 
 void calculateAlphaDelta(double l, double m, double n, double& alpha, double& delta) noexcept;
 
-QVector <quint32> firstMinDistanceTable(RecognizedInfo** distMatrix, quint32 countOfMins, quint32 objectIndex, quint32 size);
+QVector <qint32> firstMinDistanceTable(RecognizedInfo** distMatrix, qint32 countOfMins, qint32 objectIndex, qint32 size);
 
-void calculateLMNImage(double x, double y, double focus, double lmn[3]);
+void calculateLMNImage(double x, double y, double focus, double lmn[3]) noexcept;
 
 double sqrtm(double x);
 
-int LUPDecompose(double **A, int N, double Tol, int *P);
+int LUPDecompose(double** A, int N, double Tol, int* P) noexcept;
 
-double LUPDeterminant(double **A, int *P, int N);
+double LUPDeterminant(double* *A, int* P, int N) noexcept;
 
-double getDet(int nElem, double** DRVM);
+double getDet(int nElem, double** DRVM) noexcept;
 
-void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem);
+void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem) noexcept;
 
-int minorM(int z,int x,int N, double** A,double** C);
+int minorM(int z,int x,int N, double** A,double** C) noexcept;
 
-double calculateDistorsio(double point_c, double coord_a, double coord_b, QList<double> &distorsio_coef);
+double calculateDistorsio(double coordC, double coordA, double coordB, const QList<double>& distorsioCoef) noexcept;
 
-double calculateDistorsioDelta(double coord_a, double coord_b,  QList <double>& distorsio_coef);
+double calculateDistorsioDelta(double coordA, double coordB,  const QList<double>& distorsioCoef) noexcept;
 
-void rotateOY(double alpha, double mIn[3][3], double mOut[3][3]);
+bool checkQuatNorm(double q[4]) noexcept;
 
-void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3]);
+void rotateOY(double alpha, double mIn[3][3], double mOut[3][3]) noexcept;
 
-void rotateOX(double alpha, double mIn[3][3], double mOut[3][3]);
+void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3]) noexcept;
+
+void rotateOX(double alpha, double mIn[3][3], double mOut[3][3]) noexcept;
 
 
 template <class InputIterator, class Value, class UnaryOperation>
@@ -164,7 +179,7 @@ std::pair <Value, Value> calculateMeanStdDv (InputIterator first, InputIterator 
     auto count = std::distance(first,last);
     Value mean = init / count;
     dispersio = (dispersio / count) - pow(mean, 2);
-    if(abs(dispersio) < 1.0e-20) dispersio = 0;
+    if(fabs(dispersio) < 1.0e-20) dispersio = 0;
 
     return std::pair <Value,Value> (mean, sqrt(dispersio));
 }
@@ -184,7 +199,7 @@ std::pair<Value, Value> calculateMeanStdDv (InputIterator first, InputIterator l
     auto count = std::distance(first,last);
     Value mean = init / count;
     dispersio = (dispersio / count) - pow(mean, 2);
-    if(abs(dispersio) < 1.0e-20) dispersio = 0;
+    if(fabs(dispersio) < 1.0e-20) dispersio = 0;
 
     return std::pair <Value,Value> (mean, sqrt(dispersio));
 
@@ -196,7 +211,7 @@ T calculateMean (InputIterator first, InputIterator last, T init, UnaryOperation
 {
     if (first == last) return extractWtC(first);
 
-    for (InputIterator i = first;i < last;i ++)
+    for (InputIterator i = first;i < last; i++)
     {
         init += extractWtC(i);
     }
@@ -209,7 +224,7 @@ T calculateMean (InputIterator first, InputIterator last, T init) noexcept
 {
     if (first == last) return *first;
 
-    for (InputIterator i = first;i < last;i ++)
+    for (InputIterator i = first;i < last; i++)
     {
         init += *i;
     }
@@ -228,9 +243,8 @@ void setIntersectionData(QVector <Data> &intersData, Functor&& functor)
     {
         return;
     }
-
     /*формируем первый (нулевой) вектор, как вектор без непересекающимеся значениями относительно остальных*/
-    for (qint32 i = 1;i < intersData.size();i ++)
+    for (qint32 i = 1; i < intersData.size(); i++)
     {
         Data intersectedVector;// вектор, который будет содержать непересекающиеся значения, его будем присваивать первому вектору
         std::set_intersection (intersData[0].begin(), intersData[0].end(), intersData[i].begin(), intersData[i].end(),std::back_inserter(intersectedVector),
@@ -238,7 +252,7 @@ void setIntersectionData(QVector <Data> &intersData, Functor&& functor)
         intersData[0] = std::move(intersectedVector);
     }
 
-    for (qint32 i = 1;i < intersData.size();i ++)
+    for (qint32 i = 1; i < intersData.size(); i++)
     {
         Data intersectedVector;// вектор, который будет содержать непересекающиеся значения, его будем присваивать оставшимся векторам
         std::set_intersection (intersData[i].begin(), intersData[i].end(), intersData[0].begin(), intersData[0].end(), std::back_inserter(intersectedVector),
@@ -247,18 +261,18 @@ void setIntersectionData(QVector <Data> &intersData, Functor&& functor)
     }
 }
 template <typename Matrix>
-std::pair <quint32, quint32> matrixMax(const Matrix& matrix) noexcept
+std::pair <qint32, qint32> matrixMax(const Matrix& matrix) noexcept
 {
     if (matrix.size() < 1)
     {
-        return std::pair <quint32, quint32> (0, 0);
+        return std::pair <qint32, qint32> (0, 0);
     }
-    quint32 row = 0;
-    quint32 column = 0;
+    qint32 row = 0;
+    qint32 column = 0;
     auto maxMatrix = decltype(matrix[0][0]){0};
-    for (int i = 0 ; i < matrix.size(); i ++)
+    for (int i = 0 ; i < matrix.size(); i++)
     {
-        for (int j = 0 ; j < matrix[i].size(); j ++)
+        for (int j = 0 ; j < matrix[i].size(); j++)
         {
             if (maxMatrix < matrix[i][j])
             {
@@ -268,23 +282,23 @@ std::pair <quint32, quint32> matrixMax(const Matrix& matrix) noexcept
             }
         }
     }
-    return std::pair <quint32, quint32> (row, column);
+    return std::pair <qint32, qint32> (row, column);
 }
 
 template <typename Matrix>
-std::pair <quint32, quint32> matrixMin(const Matrix& matrix) noexcept
+std::pair <qint32, qint32> matrixMin(const Matrix& matrix) noexcept
 {
     if (matrix.size() < 1)
     {
-        return std::pair <quint32, quint32> (0, 0);
+        return std::pair <qint32, qint32> (0, 0);
     }
-    quint32 row = 0;
-    quint32 column = 0;
+    qint32 row = 0;
+    qint32 column = 0;
     auto minMatrix = matrix[0][0];
 
-    for (int i = 0 ; i < matrix.size(); i ++)
+    for (int i = 0 ; i < matrix.size(); i++)
     {
-        for (int j = 0 ; j < matrix[i].size(); j ++)
+        for (int j = 0 ; j < matrix[i].size(); j++)
         {
             if (minMatrix < matrix[i][j])
             {
@@ -294,14 +308,14 @@ std::pair <quint32, quint32> matrixMin(const Matrix& matrix) noexcept
             }
         }
     }
-    return std::pair <quint32, quint32> (row, column);
+    return std::pair <qint32, qint32> (row, column);
 }
 
 template <class InputIterator>
-QVector <quint32> firstMinElements (InputIterator first, InputIterator last, quint32 countOfMins)
+QVector <qint32> firstMinElements (InputIterator first, InputIterator last, qint32 countOfMins)
 {
     QVector <float> vec(countOfMins, std::numeric_limits <float>::max());
-    QVector <quint32> minIndexes(countOfMins, std::numeric_limits <quint32>::max());
+    QVector <qint32> minIndexes(countOfMins, std::numeric_limits <qint32>::max());
 
     for (auto it = first; it != last; it++)
     {
@@ -332,10 +346,10 @@ QVector <quint32> firstMinElements (InputIterator first, InputIterator last, qui
 
 
 template <class InputIterator, typename Functor>
-QVector <quint32> firstMinElements (InputIterator first, InputIterator last, quint32 countOfMins, Functor functor)
+QVector <qint32> firstMinElements (InputIterator first, InputIterator last, qint32 countOfMins, Functor functor)
 {
     QVector <float> vec(countOfMins, std::numeric_limits <decltype(functor(*first))>::max());
-    QVector <quint32> minIndexes(countOfMins, std::numeric_limits <quint32>::max());
+    QVector <qint32> minIndexes(countOfMins, std::numeric_limits <qint32>::max());
 
     for (auto it = first; it != last; it++)
     {

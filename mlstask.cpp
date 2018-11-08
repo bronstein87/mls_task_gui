@@ -6,7 +6,7 @@ MLSTask::MLSTask(QObject *parent) : QObject(parent)
 }
 
 
-void MLSTask::readModelData(const QString& filename, bool skipFirstRow)
+void MLSTask::readFullModelData(const QString& filename, bool skipFirstRow)
 {
     frame.clear();
     rotAngles.alphaRotates.clear();
@@ -33,6 +33,68 @@ void MLSTask::readModelData(const QString& filename, bool skipFirstRow)
             rotAngles.phiRotates.append(list[2].toDouble());
         }
         initFrame = frame;
+        file.close();
+    }
+    else
+    {
+        throw std::runtime_error("Не удалось открыть файл " + filename.toStdString());
+    }
+}
+
+void MLSTask::readTriangleModelData(const QString& filename, bool skipFirstRow)
+{
+    triangleFrame.clear();
+    QFile file (filename);
+    if(file.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file);
+        QString line;
+        constexpr const quint16 rowLength = 8;
+        if (skipFirstRow)
+        {
+            in.readLineInto(&line);
+        }
+        int pointsCount = 0;
+        QString previousAlpha;
+        QString previousAzimut;
+        TrianglePattern triangle;
+        in.readLineInto(&line);
+        QStringList splitted = line.split("\t");
+
+        previousAlpha = splitted[3];
+        previousAzimut = splitted[2];
+        initFrame.append(QPointF((splitted[5].toDouble() - frameX) * pixelSize,
+                         (splitted[6].toDouble() - frameX) * pixelSize));
+        triangle.points[pointsCount++] = initFrame.last();
+        QVector <TrianglePattern> lineVec;
+        while (in.readLineInto(&line))
+        {
+            QStringList list = line.split("\t");
+            if (list.size() != rowLength)
+            {
+                throw std::logic_error("Неверная строка в каталоге");
+            }
+            if (previousAzimut != list[2])
+            {
+                triangleFrame.append(lineVec);
+                previousAzimut = list[2];
+                lineVec.clear();
+            }
+            if (previousAlpha != list[3])
+            {
+                previousAlpha = list[3];
+                pointsCount = 0;
+            }
+            initFrame.append(QPointF((list[5].toDouble() - frameX) * pixelSize,
+                             (list[6].toDouble() - frameY) * pixelSize));
+            triangle.points[pointsCount++] = initFrame.last();
+
+            if (pointsCount == countPointsTriangle)
+            {
+                lineVec.append(triangle);
+                pointsCount = 0;
+            }
+        }
         file.close();
     }
     else
@@ -319,11 +381,256 @@ void MLSTask::fitFocusByLines(const QBitArray& derivativeFlags, Results& results
         smallFrame.clear();
     }
 }
-void MLSTask::calculate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors)
+void MLSTask::calculateFull(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors)
 {
     calculatePrivate(derivativeFlags, results, errors, rotAngles, frame);
 
 }
+
+void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& errors)
+{
+    constexpr const double angleMainFirst = 0.353553;
+    constexpr const double angleMainSecond = 0.353553;
+    constexpr const double angleFirstSecond = 0.5;
+    constexpr const double angleBetwTriangles = 2.0;
+    const QVector <double> fixedAngles {angleMainFirst, angleMainSecond, angleFirstSecond, angleBetwTriangles};
+
+    double DFR[maxDer];
+    double **DRV = new double* [maxDer];
+    double **DRVM = new double* [maxParams];
+    double **DRVM_1 = new double* [maxParams];
+    for (int count = 0; count < maxDer; count++)
+    {
+        DRV[count] = new double [maxParams];
+    }
+    for (int j = 0; j < maxParams; j++)
+    {
+        DRVM[j] = new double [maxParams];
+        DRVM_1[j] = new double [maxParams];
+    }
+
+    double DRVH[maxParams], ANGD[maxParams];
+    double mxy = 1000;
+    double mxy_pr;
+    qint32 clk = 0;
+    qint32 numP = 0;
+    double focus = results.foc;
+    QList <double> distX;
+    QList <double> distY;
+    QList <double> distXDrv;
+    QList <double> distYDrv;
+    for (int i = 0; i < 21; i++)
+    {
+        distX.append(0);
+        distY.append(0);
+    }
+    distXDrv = distX;
+    distYDrv = distY;
+    qint32 counter = 0;
+    qint32 nCft = 10;
+    //double distDelta = 0.0001;
+    QVector <double > distDelta {1.0e-12, 1.0e-10, 1.0e-10, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6};
+    do
+    {
+        mxy_pr = mxy;
+        mxy = 0.;
+        counter = 0;
+        for (const auto& line : triangleFrame)
+        {
+
+            for (int i = 0; i < line.size(); i++)
+            {
+                for (int j = 0; j < line[i].points.size() - 1; j++)
+                {
+                    for (int k = j + 1; k < line[i].points.size(); k++)
+                    {
+                        if (!distorsio)
+                        {
+                            double angle = calculateAngle(line[i].points[j], line[i].points[k], focus, distX, distY);
+                            DFR[counter] = fixedAngles[j + k - 1] - angle;
+                            double nAngle = calculateAngle(line[i].points[j], line[i].points[k], focus + deltaFocus, distX, distY);
+                            DRV[counter][numP] = (nAngle - angle) / deltaFocus;
+                            mxy += DFR[counter] * DFR[counter];
+                            ++counter;
+                        }
+                        else
+                        {
+                            numP = 0;
+                            for (int l = 0; l < nCft; l++)
+                            {
+                                distXDrv = distX;
+                                distXDrv[l] += distDelta[l];
+                                double angle = calculateAngle(line[i].points[j], line[i].points[k], focus, distX, distY);
+                                DFR[counter] = fixedAngles[j + k - 1] - angle;
+                                double nAngle = calculateAngle(line[i].points[j], line[i].points[k], focus, distXDrv, distY);
+                                DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
+                                mxy += DFR[counter] * DFR[counter];
+                                // ++counter;
+                               // qDebug() << (nAngle - angle) / distDelta[l];
+                                distYDrv = distY;
+                                distYDrv[l] += distDelta[l];
+                                DFR[counter] = angle;
+                                nAngle = calculateAngle(line[i].points[j], line[i].points[k], focus, distX, distYDrv);
+                                DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
+                                mxy += DFR[counter] * DFR[counter];
+                                // ++counter;
+                               // qDebug() << (nAngle - angle) / distDelta[l];
+                            }
+                            ++counter;
+                        }
+
+                    }
+                }
+                for (int j = i + 1; j < line.size(); j++)
+                {
+                    if (i == line.size() - 1)
+                    {
+                        break;
+                    }
+                    if (!distorsio)
+                    {
+                        double angle = abs(calculateAngle(line[i].points[0], line[j].points[0], focus, distX, distY));
+                        DFR[counter] = fixedAngles.last() * (j - i) - angle;
+                        double nAngle = calculateAngle(line[i].points[0], line[j].points[0], focus + deltaFocus, distX, distY);
+                        DRV[counter][numP] = (abs(nAngle) - angle) / deltaFocus;
+                        mxy += DFR[counter] * DFR[counter];
+                        ++counter;
+                    }
+                    else
+                    {
+                        numP = 0;
+                        for (int l = 0; l < nCft; l++)
+                        {
+                            distXDrv = distX;
+                            distXDrv[l] += distDelta[l];
+                            double angle = abs(calculateAngle(line[i].points[0], line[j].points[0], focus, distX, distY));
+                            DFR[counter] = fixedAngles.last() * (j - i) - angle;;
+                            double nAngle = abs(calculateAngle(line[i].points[0], line[j].points[0], focus, distXDrv, distY));
+                            DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
+                            mxy += DFR[counter] * DFR[counter];
+                            // ++counter;
+
+                            distYDrv = distY;
+                            distYDrv[l] += distDelta[l];
+                            DFR[counter] = angle;
+                            nAngle = calculateAngle(line[i].points[0], line[j].points[0], focus, distX, distYDrv);
+                            DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
+                            mxy += DFR[counter] * DFR[counter];
+                            //++counter;
+                        }
+                        ++counter;
+                    }
+                }
+            }
+        }
+        if (!distorsio)
+        {
+            numP = 1;
+        }
+        else
+        {
+//            for (int i = 0; i < counter; i++)
+//            {
+//                QString str;
+//                for (int j = 0; j < numP; j++)
+//                {
+//                    str.append(QString::number(DRV[i][j]) + " ");
+//                }
+//                qDebug() << str;
+//            }
+        }
+
+        mxy = mxy / (double)(counter - numP);  mxy = sqrtm(mxy);
+        for (int i = 0; i < numP; i++)
+        {
+            for (int j = 0; j < numP; j++) // произведение обычной и транс. матрицы параметров
+            {
+                DRVM[i][j] = 0.;      //(DRV)^T*DRV
+                for (int k = 0; k < counter; k++)
+                {
+                    DRVM[i][j] += DRV[k][i] * DRV[k][j];
+                }
+            }
+        }
+        if (numP == 0)
+        {
+            return;
+        }
+        else if (numP == 1)
+        {
+            DRVM_1[0][0] = 1 / DRVM[0][0];
+        }
+        else
+        {
+            Matrix_1MM(DRVM, DRVM_1, numP); // вычисление обратной матрицы
+        }
+        for (int i = 0; i < numP; i++)
+        { // умножение транспонированной на вектор расхождений координат
+            DRVH[i] = 0.;             //DRVH=(DRV)^T*DIF
+            for (int k = 0; k < counter; k++)
+            {
+                DRVH[i] += DRV[k][i] * DFR[k];
+            }
+        }
+
+        for (int i = 0; i < numP; i++)
+        { // вычисление дельт углов
+            ANGD[i] = 0.;
+            for (int k = 0; k < numP; k++)
+            {
+                ANGD[i] += DRVM_1[i][k] * DRVH[k];
+            }
+        }
+
+        if (!distorsio)
+        {
+            focus += ANGD[0];
+        }
+        else
+        {
+            for (int i = 0; i < nCft; i++)
+            {
+                distX[i] += ANGD[2 * i];
+                distY[i] += ANGD[2 * i + 1];
+            }
+        }
+        clk++;
+    }
+    while ((fabs(mxy - mxy_pr) > maxError)
+           && (clk < maxIterations));
+
+    if (!distorsio)
+    {
+        results.foc = focus;
+        errors.dfoc = sqrtm(DRVM_1[0][0]) * mxy;
+        qDebug() << results.foc << errors.dfoc << mxy;
+    }
+    else
+    {
+        qDebug() << distX << distY;
+    }
+
+
+
+    if (mxy > thershold * pixelSize)
+    {
+        throw std::runtime_error("Грубые измерения.");
+    }
+
+    for (int count = 0; count < counter; count++)
+    {
+        delete[] DRV[count];
+    }
+    delete[] DRV;
+    for (int count = 0; count < maxParams; count++)
+    {
+        delete[] DRVM[count];
+        delete[] DRVM_1[count];
+    }
+    delete [] DRVM;
+    delete [] DRVM_1;
+}
+
 void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors, const RotateAngles& rotAngles, QVector<QPointF>& frame)
 {
     double MstandTemp[3][3];
@@ -1151,13 +1458,32 @@ int MLSTask::gaussObr(int cntStar,double mass[55][55],double mObr[55][55])
         {
             sum=0;
             for(k=cntStar-1;k>j;k--)
-                sum+=mass[j][k]*mObr[k][i];
-            if(mass[j][j]==0)
+                sum += mass[j][k]*mObr[k][i];
+            if(mass[j][j] == 0)
             {
                 return 0;
             }
-            mObr[j][i]=(mObr[j][i]-sum)/mass[j][j];
+            mObr[j][i] = (mObr[j][i]-sum)/mass[j][j];
         }
     }
     return 1;
+}
+
+double MLSTask::calculateAngle(const QPointF& fPoint, const QPointF& sPoint, double focus, QList <double>& distorsioCoefX, QList <double>& distorsioCoefY)
+{
+    QPointF fPointDist (fPoint.x() + calculateDistorsioDelta(fPoint.x(), fPoint.y(), distorsioCoefX),
+                        fPoint.y() + calculateDistorsioDelta(fPoint.x(), fPoint.y(), distorsioCoefY));
+    double fLength = sqrtm (pow(fPointDist.x(), 2) + pow(fPointDist.y(), 2)  + pow(focus, 2));
+    fPointDist.setX(fPointDist.x() / fLength);
+    fPointDist.setY(fPointDist.y() / fLength);
+    double normFocusf = -focus / fLength;
+    QPointF sPointDist (sPoint.x() + calculateDistorsioDelta(sPoint.x(), sPoint.y(), distorsioCoefX),
+                        sPoint.y() + calculateDistorsioDelta(sPoint.x(), sPoint.y(), distorsioCoefY));
+    double sLength = sqrtm (pow(sPointDist.x(), 2) + pow(sPointDist.y(), 2)  + pow(focus, 2));
+    sPointDist.setX(sPointDist.x() / sLength);
+    sPointDist.setY(sPointDist.y() / sLength);
+    double normFocuss = -focus / sLength;
+    double cos = calculateScalarProduct(fPointDist.x(), sPointDist.x(), fPointDist.y(), sPointDist.y(), normFocusf, normFocuss);
+    //qDebug() << acosm(cos) * radToDegrees;
+    return acosm(cos) * radToDegrees;
 }

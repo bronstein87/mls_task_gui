@@ -101,7 +101,7 @@ void calculateMoonDirection(double JD_DEV, double *pMoonI) noexcept
 
 
 
-void multiplyMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept
+void multMatrixVector(const double M[3][3], const double V[3], double VR[3]) noexcept
 {
     VR[0] = M[0][0]*V[0]+M[0][1]*V[1]+M[0][2]*V[2];
     VR[1] = M[1][0]*V[0]+M[1][1]*V[1]+M[1][2]*V[2];
@@ -110,32 +110,15 @@ void multiplyMatrixVector(const double M[3][3], const double V[3], double VR[3])
 
 
 /*меняем местами 1,2 и 3,4 байты qint32 местами*/
-quint32 correctDTMIInt(quint32 incrTimePr) noexcept
+// fix
+void swapShort(void* value) noexcept
 {
     quint16 parts2Bytes[2];
-    parts2Bytes[0] = *((quint16*)&incrTimePr);
-    parts2Bytes[1] = *((quint16*)&incrTimePr+1);
-    *((quint16*)&incrTimePr) = parts2Bytes[1];
-    *((quint16*)&incrTimePr+1) = parts2Bytes[0];
-
-    return incrTimePr;
+    memcpy(parts2Bytes, value, sizeof(short));
+    memcpy(parts2Bytes + 1, (short*)(value) + 1, sizeof(short));
+    memcpy((short*)(value) + 1,parts2Bytes, sizeof(short));
+    memcpy(value, parts2Bytes + 1, sizeof(short));
 }
-
-
-
-
-
-/*меняем местами 1,2 и 3,4 байты float местами*/
-float correctDTMIFloat(float element) noexcept
-{
-    quint16 parts2Bytes[2];
-    parts2Bytes[0] = *((quint16*)&element);
-    parts2Bytes[1] = *((quint16*)&element+1);
-    *((quint16*)&element) = parts2Bytes[1];
-    *((quint16*)&element+1) = parts2Bytes[0];
-    return element;
-}
-
 
 
 
@@ -147,11 +130,11 @@ void correctLocArray(float locArray[16][4]) noexcept
     quint16 locRows = 4;
 
     /* конвертируем Loc в формат postgres массива (хранить будем его как одномерный, иначе долго)*/
-    for(qint32 locColumn = 0;locColumn < locColumns;locColumn ++)
+    for(qint32 locColumn = 0;locColumn < locColumns; locColumn++)
     {
-        for(qint32 locRow=0;locRow<locRows;locRow++)
+        for(qint32 locRow = 0; locRow < locRows; locRow++)
         {
-            locArray[locColumn][locRow] = correctDTMIFloat(locArray[locColumn][locRow]);
+            swapShort(&locArray[locColumn][locRow]);
         }
     }
 }
@@ -162,14 +145,14 @@ void correctAngularVArray(float Wo[3]) noexcept
     quint16 WoLenght = 3;
     for(qint32 i = 0;i < WoLenght;i ++)
     {
-        Wo[i] = correctDTMIFloat(Wo[i]);
+        swapShort(&Wo[i]);
     }
 
 }
 
 
 // расчёт юлианской даты
-double calculateJulianDate(const QDateTime & dateTime) noexcept
+double calculateJulianDate(const QDateTime& dateTime) noexcept
 {
     double julianDate =
             static_cast <double> (dateTime.date().toJulianDay()) - 0.5;
@@ -178,6 +161,7 @@ double calculateJulianDate(const QDateTime & dateTime) noexcept
             + static_cast <double> (dateTime.time().second()) / 86400;
     return julianDate;
 }
+
 
 double calculateJulianCenturies(const QDateTime& dateTime) noexcept
 {
@@ -188,29 +172,31 @@ double calculateJulianCenturies(const QDateTime& dateTime) noexcept
 
 inline double mSecsToSecs(quint64 mSecsSinceEpoch) noexcept
 {
-    return (double)mSecsSinceEpoch / 1000;
+    return static_cast <double> (mSecsSinceEpoch / 1000);
 }
 
 
 // для вычисления дат времени привязки (юлианская дата на полночь)
 double calculateDatePr(const QDateTime& dateTime, int timePr) noexcept
 {
-    int julianDate  = dateTime.addSecs(-timePr).date().toJulianDay();
+    qint64 julianDate  = dateTime.addSecs(-timePr).date().toJulianDay();
     return static_cast <double> (julianDate) - 0.5;
 }
 
 
-// вычисляет дату как TDateTime::value, НЕ УЧТЕНЫ миллисекунды.
+// вычисляет дату как TDateTime::value, УЧТЕНЫ миллисек., но не проверено.
 double toTDateTimeValue(const QDateTime& datetime) noexcept
 {
-    auto daysToTDateTimeValue = abs(datetime.daysTo(QDateTime(QDate(1899,12,30))));
-    double partOfDay = static_cast <double> (abs(datetime.time().secsTo(QTime(0,0,0))))/86400;
+    auto daysToTDateTimeValue = std::abs(datetime.daysTo(QDateTime(QDate(1899, 12, 30))));
+    double partOfDay = static_cast <double> (abs(datetime.time().msecsTo(QTime(0,0,0)))) / mSecsInDay;
     return static_cast <double> (daysToTDateTimeValue) + partOfDay;
 }
 
 QDateTime fromTDateTime(double value) noexcept
 {
-    return QDateTime(QDate(1899,12,30)).addDays(static_cast<quint32>(value)).addSecs(round((value - static_cast<quint32>(value)) * 86400));
+    return QDateTime(QDate(1899, 12, 30))
+            .addDays(static_cast <qint32> (value))
+            .addMSecs(round((value - floor(value)) * mSecsInDay));
 }
 
 
@@ -231,28 +217,28 @@ double starsTime2(double JD) noexcept
     double     Ssr_rad; // гринвичское среднее звездное время
 
 
-    tau=JD/36525.;
-    tau_2=tau*tau;
-    tau_3=tau_2*tau;
+    tau = JD/36525.;
+    tau_2 = tau*tau;
+    tau_3 = tau_2*tau;
 
-    M=JD+0.5-(qint32)JD;
-    Ssr_rad=1.7533685592+0.0172027918051*JD+6.2831853072*M+6.7707139e-6*tau_2
+    M = JD+0.5-(qint32)JD;
+    Ssr_rad = 1.7533685592+0.0172027918051*JD+6.2831853072*M+6.7707139e-6*tau_2
             -4.50876e-10*tau_2*tau;
 
-    l1=6.24003594 + 628.30195602 *tau - 2.7974e-6 *tau_2-5.82e-8*tau_3;
-    F =1.62790193 + 8433.46615831 *tau - 6.42717e-5*tau_2 + 5.33e-8*tau_3;
-    D =5.19846951 + 7771.37714617 *tau - 3.34085e-5*tau_2 + 9.21e-8*tau_3;
-    W =2.182438624 - 33.757045936*tau + 3.61429e-5*tau_2 + 3.88e-8*tau_3;
-    Nf=-0.83386e-4*sin(W)+0.9997e-6*sin(2*W)-0.63932e-5*sin(2*(F-D+W))+
+    l1 = 6.24003594 + 628.30195602 *tau - 2.7974e-6 *tau_2-5.82e-8*tau_3;
+    F = 1.62790193 + 8433.46615831 *tau - 6.42717e-5*tau_2 + 5.33e-8*tau_3;
+    D = 5.19846951 + 7771.37714617 *tau - 3.34085e-5*tau_2 + 9.21e-8*tau_3;
+    W = 2.182438624 - 33.757045936*tau + 3.61429e-5*tau_2 + 3.88e-8*tau_3;
+    Nf = -0.83386e-4*sin(W)+0.9997e-6*sin(2*W)-0.63932e-5*sin(2*(F-D+W))+
             0.6913e-6*sin(l1)-0.11024e-5*sin(2*(F+W));
-    Ne=0.44615e-4*cos(W)+0.27809e-5*cos(2*(F-D+W))+0.474e-6*cos(2*(F+W));
-    e0=0.4090928042-0.2269655e-3*tau-0.29e-8*tau_2+0.88e-8*tau_3;
+    Ne = 0.44615e-4*cos(W)+0.27809e-5*cos(2*(F-D+W))+0.474e-6*cos(2*(F+W));
+    e0 = 0.4090928042-0.2269655e-3*tau-0.29e-8*tau_2+0.88e-8*tau_3;
 
     //учитываем нутацию в прямом восхождении
-    Ssr_rad+=Nf*cos(e0+Ne);
+    Ssr_rad += Nf*cos(e0+Ne);
 
     //приводим звездное время к "нормальному" виду
-    while (Ssr_rad>2*M_PI) Ssr_rad=Ssr_rad-2*(M_PI);
+    while (Ssr_rad > 2*M_PI) Ssr_rad = Ssr_rad-2*(M_PI);
 
     return Ssr_rad;
 }
@@ -284,8 +270,8 @@ void  transSpeedGSKtoISK(double JD, double CG[3], double VG[3], double VI[3]) no
     constexpr const double W = 15.041 / radToSec;
 
     double CI [3];
-    multiplyMatrixVector(MG, CG, CI);
-    multiplyMatrixVector(MG, VG, VI);
+    multMatrixVector(MG, CG, CI);
+    multMatrixVector(MG, VG, VI);
 
     for (qint32 i = 0; i < 3; i ++)
     {
@@ -301,7 +287,7 @@ void  transCoordsGSKtoISK(double JD, double CG[3], double CI[3]) noexcept
 
     double MG[3][3]; // матрица перехода от ГСК к ИСК
     getGSKISKMatrix(JD,MG);
-    multiplyMatrixVector(MG, CG, CI);
+    multMatrixVector(MG, CG, CI);
 
     for (qint32 i = 0; i < 3; i++)
     {
@@ -311,18 +297,18 @@ void  transCoordsGSKtoISK(double JD, double CG[3], double CI[3]) noexcept
 }
 
 
-void quatToMatr(const double Quat[], double M_ornt[3][3]) noexcept
+void quatToMatr(const double Quat[], double mOrnt[3][3]) noexcept
 {
 
-    M_ornt[0][0] = Quat[0]*Quat[0]+Quat[1]*Quat[1]-Quat[2]*Quat[2]-Quat[3]*Quat[3];
-    M_ornt[0][1] = 2.0*(Quat[1]*Quat[2]+Quat[0]*Quat[3]);
-    M_ornt[0][2] = 2.0*(Quat[1]*Quat[3]-Quat[0]*Quat[2]);
-    M_ornt[1][0] = 2.0*(Quat[1]*Quat[2]-Quat[0]*Quat[3]);
-    M_ornt[1][1] = Quat[0]*Quat[0]-Quat[1]*Quat[1]+Quat[2]*Quat[2]-Quat[3]*Quat[3];
-    M_ornt[1][2] = 2.0*(Quat[2]*Quat[3]+Quat[0]*Quat[1]);
-    M_ornt[2][0] = 2.0*(Quat[1]*Quat[3]+Quat[0]*Quat[2]);
-    M_ornt[2][1] = 2.0*(Quat[2]*Quat[3]-Quat[0]*Quat[1]);
-    M_ornt[2][2] = Quat[0]*Quat[0]-Quat[1]*Quat[1]-Quat[2]*Quat[2]+Quat[3]*Quat[3];
+    mOrnt[0][0] = Quat[0]*Quat[0]+Quat[1]*Quat[1]-Quat[2]*Quat[2]-Quat[3]*Quat[3];
+    mOrnt[0][1] = 2.0*(Quat[1]*Quat[2]+Quat[0]*Quat[3]);
+    mOrnt[0][2] = 2.0*(Quat[1]*Quat[3]-Quat[0]*Quat[2]);
+    mOrnt[1][0] = 2.0*(Quat[1]*Quat[2]-Quat[0]*Quat[3]);
+    mOrnt[1][1] = Quat[0]*Quat[0]-Quat[1]*Quat[1]+Quat[2]*Quat[2]-Quat[3]*Quat[3];
+    mOrnt[1][2] = 2.0*(Quat[2]*Quat[3]+Quat[0]*Quat[1]);
+    mOrnt[2][0] = 2.0*(Quat[1]*Quat[3]+Quat[0]*Quat[2]);
+    mOrnt[2][1] = 2.0*(Quat[2]*Quat[3]-Quat[0]*Quat[1]);
+    mOrnt[2][2] = Quat[0]*Quat[0]-Quat[1]*Quat[1]-Quat[2]*Quat[2]+Quat[3]*Quat[3];
 }
 
 
@@ -347,26 +333,35 @@ double atan2m(double yf, double xf) noexcept
     return ang;
 }
 
-void matrToEkvA(double M_ornt[3][3], double& al, double& dl, double& Az) noexcept
+void matrToEkvA(double mOrnt[3][3], double& al, double& dl, double& Az, AxisType axis) noexcept
 {
-    dl = asin(M_ornt[2][2]);
-    al = atan2m(M_ornt[2][1], M_ornt[2][0]);
-    if (al<0)
+    qint32 row = static_cast <qint32> (axis);
+    dl = asin(mOrnt[row][2]);
+    al = atan2m(mOrnt[row][1], mOrnt[row][0]);
+    if (al < 0)
     {
         al += 2 * M_PI;
     }
-    Az = atan2m(M_ornt[0][2], M_ornt[1][2]);
-    if (Az < 0)
+    if (axis == AxisType::zAxis)
     {
-        Az += 2 * M_PI;
+        Az = atan2m(mOrnt[0][2], mOrnt[1][2]);
+        if (Az < 0)
+        {
+            Az += 2 * M_PI;
+        }
     }
+    else
+    {
+        Az = 0; // temporary
+    }
+
 }
 
-void quatToEkvA(const double Quat[], double EkvA[3]) noexcept
+void quatToEkvA(const double Quat[], double EkvA[3], AxisType axis) noexcept
 {
-    double Matr[3][3],Al, Dl, Az;
-    quatToMatr(Quat,Matr);
-    matrToEkvA(Matr,Al,Dl,Az);
+    double Matr[3][3], Al, Dl, Az;
+    quatToMatr(Quat, Matr);
+    matrToEkvA(Matr, Al, Dl, Az, axis);
 
     EkvA[0] = Al * radToDegrees;
     EkvA[1] = Dl * radToDegrees;
@@ -376,23 +371,22 @@ void quatToEkvA(const double Quat[], double EkvA[3]) noexcept
 
 double acosm(double xf) noexcept
 {
-    if (xf>1.) xf=1.;
-    else if (xf<-1.) xf=-1.;
-
+    if (xf>1.) xf = 1.;
+    else if (xf<-1.) xf =- 1.;
     return acos(xf);
 }
 
 void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept
 {
     double buf;
-    int i,j,k;
+    int i, j, k;
 
-    for(i = 0; i < 3; i++)
+    for(i = 0;i < 3; i++)
     {
-        for(j = 0; j < 3; j++)
+        for(j = 0;j < 3; j++)
         {
             buf = 0;
-            for (k = 0; k < 3; k++)
+            for (k = 0;k < 3; k++)
             {
                 buf = buf + Matr1[i][k] * Matr2[k][j];
             }
@@ -401,27 +395,24 @@ void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Ma
     }
 }
 
-void getAngularDisplacementFromOrientMatr(const double M_ornt_pr[3][3],const double M_ornt[3][3], double Wop [3]) noexcept
+void getAngularDisplacementFromOrientMatr(const double mOrnt_pr[3][3],const double mOrnt[3][3], double Wop [3]) noexcept
 
 {
     double MT_ornt_pr[3][3], dMB[3][3];
     double delta, sdt;
     // считаем матрицу, дающую противоположный поворот
-    for (int i = 0;i < 3;i ++)
+    for (int i = 0;i < 3; i++)
     {
         for (int j = 0;j < 3;j ++)
         {
-            MT_ornt_pr[i][j] = M_ornt_pr[j][i];
+            MT_ornt_pr[i][j] = mOrnt_pr[j][i];
         }
     }
     // перемножаем, чтобы получить разницу
-    multiplyMatrix(M_ornt, MT_ornt_pr, dMB);
-
-
+    multiplyMatrix(mOrnt, MT_ornt_pr, dMB);
     delta=(dMB[0][0] + dMB[1][1] + dMB[2][2] - 1.)/2.;
-
     // если угол очень маленький, то считаем дельта равной 0
-    if (delta>1) delta=1;
+    if (delta > 1) delta = 1;
 
     if (fabs(delta - 1.0) < 1E-20)
     {
@@ -433,16 +424,16 @@ void getAngularDisplacementFromOrientMatr(const double M_ornt_pr[3][3],const dou
     {
         delta = acosm(delta);
         sdt = sin(delta);
-        Wop[0]= -delta*(dMB[2][1] - dMB[1][2]) / (2.0 * sdt);
-        Wop[1]= -delta*(dMB[0][2] - dMB[2][0]) / (2.0 * sdt);
-        Wop[2]= -delta*(dMB[1][0] - dMB[0][1]) / (2.0 * sdt);
+        Wop[0]= -delta * (dMB[2][1] - dMB[1][2]) / (2.0 * sdt);
+        Wop[1]= -delta * (dMB[0][2] - dMB[2][0]) / (2.0 * sdt);
+        Wop[2]= -delta * (dMB[1][0] - dMB[0][1]) / (2.0 * sdt);
     }
 }
 
-double calculateAngleAxis(const double quat1[], const double quat2[], AXIS_TYPE axis) noexcept
+double calculateAngleAxis(const double quat1[], const double quat2[], AxisType axis) noexcept
 {
     double orientMatrix1[3][3];
-    BOKZMath::quatToMatr(quat1,orientMatrix1);
+    BOKZMath::quatToMatr(quat1, orientMatrix1);
 
     /*считаем углы между заданной осью*/
     qint32 axisBetween = static_cast <qint32> (axis);
@@ -452,45 +443,44 @@ double calculateAngleAxis(const double quat1[], const double quat2[], AXIS_TYPE 
     double nfirst = orientMatrix1[axisBetween][2];
 
     double orientMatrix2[3][3];
-    BOKZMath::quatToMatr(quat2,orientMatrix2);
+    BOKZMath::quatToMatr(quat2, orientMatrix2);
 
     double lsecond = orientMatrix2[axisBetween][0];
     double msecond = orientMatrix2[axisBetween][1];
     double nsecond = orientMatrix2[axisBetween][2];
 
-
-    return std::acos(lfirst * lsecond + mfirst * msecond + nfirst * nsecond) * BOKZMath::radToDegrees;
+    return std::acos(calculateScalarProduct(lfirst, lsecond, mfirst, msecond, nfirst, nsecond)) * BOKZMath::radToDegrees;
 }
 
 
 QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, QVector <float> firstX, QVector <float> firstY, QVector <float> secondX, QVector <float> secondY) noexcept
 {
-    QVector <QVector <quint32>> histogramm;
+    QVector <QVector <qint32>> histogramm;
     histogramm.resize(histSize);
     for(auto& i : histogramm)
     {
         i.resize(histSize);
     }
-    quint32 centerX, centerY, range;
+    qint32 centerX, centerY, range;
     centerX = centerY = (histSize / 2) + 1;
     range = histSize / 2;
 
-    quint32 countObjectsFirst = firstX.size();
-    quint32 countObjectsSecond = secondX.size();
+    qint32 countObjectsFirst = firstX.size();
+    qint32 countObjectsSecond = secondX.size();
 
     qint32 dx, dy;
-    for(quint32 i = 0; i < countObjectsFirst; i ++)
+    for(qint32 i = 0; i < countObjectsFirst; i++)
     {
-        if (firstX[i] == 0 && firstY[i] == 0)
+        if (qFuzzyCompare(firstX[i], 0) && qFuzzyCompare(firstY[i], 0))
         {
             break;
         }
-        for (quint32 j = 0; j < countObjectsSecond; j ++)
+        for (qint32 j = 0; j < countObjectsSecond; j++)
         {
             dx = round(firstX[i] - secondX[j]);
             dy = round(firstY[i] - secondY[j]);
 
-            if (abs(dx) < range && abs(dy) < range )
+            if (abs(dx) < range && abs(dy) < range)
             {
                 ++histogramm[centerX + dx][centerY + dy];
             }
@@ -505,7 +495,7 @@ QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, QVector <f
     float currShiftY = 0.0;
 
     // считаем смещения для всех совпадающих по порядку объектов
-    for(quint32 i = 0; i < countObjectsFirst; i ++)
+    for(qint32 i = 0; i < countObjectsFirst; i++)
     {
         currShiftX = firstX[i] - secondX[i];
         currShiftY = firstY[i] - secondY[i];
@@ -513,7 +503,7 @@ QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, QVector <f
         if (currShiftX <= (shiftX + shiftRange) && currShiftX >= (shiftX - shiftRange)
                 && currShiftY <= (shiftY + shiftRange) && currShiftY >= (shiftY - shiftRange))
         {
-            shifts.append(QPointF(currShiftX,currShiftY));
+            shifts.append(QPointF(currShiftX, currShiftY));
         }
         else
         {
@@ -523,11 +513,11 @@ QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, QVector <f
 
     // считаем смещения для тех объектов, которые могут находиться в разных порядках
     // а возможно он уже просто пропал, тогда ничего не изменится
-    for(qint32 i = 0; i < shifts.size(); i ++)
+    for(qint32 i = 0; i < shifts.size(); i++)
     {
-        if (shifts[i].x() == 0 && shifts[i].y() == 0)
+        if (qFuzzyCompare(shifts[i].x(), 0) && qFuzzyCompare(shifts[i].y(), 0))
         {
-            for(quint32 j = 0; j < countObjectsSecond; j++)
+            for(qint32 j = 0; j < countObjectsSecond; j++)
             {
                 currShiftX = firstX[i] - secondX[j];
                 currShiftY = firstY[i] - secondY[j];
@@ -535,7 +525,7 @@ QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, QVector <f
                 if (currShiftX <= (shiftX + shiftRange) && currShiftX >= (shiftX - shiftRange)
                         && currShiftY <= (shiftY + shiftRange) && currShiftY >= (shiftY - shiftRange))
                 {
-                    shifts[i] = QPointF(currShiftX,currShiftY);
+                    shifts[i] = QPointF(currShiftX, currShiftY);
                 }
             }
         }
@@ -546,26 +536,26 @@ QVector <QPointF> createHistogramm(size_t histSize, float shiftRange, QVector <f
 // потом отрефакторить
 QVector<QPointF> createHistogramm(size_t histSize, float shiftRange, const QVector<QPointF>& firstCoords, const QVector<QPointF>& secondCoords) noexcept
 {
-    QVector <QVector <quint32>> histogramm;
+    QVector <QVector <qint32>> histogramm;
     histogramm.resize(histSize);
     for(auto& i : histogramm)
     {
         i.resize(histSize);
     }
-    quint32 centerX, centerY, range;
+    qint32 centerX, centerY, range;
     centerX = centerY = (histSize / 2) + 1;
     range = histSize / 2;
 
-    quint32 countObjectsFirst = firstCoords.size();
-    quint32 countObjectsSecond = secondCoords.size();
+    qint32 countObjectsFirst = firstCoords.size();
+    qint32 countObjectsSecond = secondCoords.size();
     qint32 dx, dy;
-    for(quint32 i = 0; i < countObjectsFirst; i ++)
+    for(qint32 i = 0; i < countObjectsFirst; i ++)
     {
-        if (firstCoords[i].x() == 0 && firstCoords[i].y() == 0)
+        if (qFuzzyCompare(firstCoords[i].x(), 0) && qFuzzyCompare(firstCoords[i].y(), 0))
         {
             break;
         }
-        for (quint32 j = 0; j < countObjectsSecond; j ++)
+        for (qint32 j = 0; j < countObjectsSecond; j ++)
         {
             dx = round(firstCoords[i].x() - secondCoords[j].x());
             dy = round(firstCoords[i].y() - secondCoords[j].y());
@@ -585,7 +575,7 @@ QVector<QPointF> createHistogramm(size_t histSize, float shiftRange, const QVect
     float currShiftY = 0.0;
 
     // считаем смещения для всех совпадающих по порядку объектов
-    for(quint32 i = 0; i < countObjectsFirst; i ++)
+    for(qint32 i = 0; i < countObjectsFirst; i ++)
     {
         currShiftX = firstCoords[i].x() - secondCoords[i].x();
         currShiftY = firstCoords[i].y() - secondCoords[i].y();
@@ -593,7 +583,7 @@ QVector<QPointF> createHistogramm(size_t histSize, float shiftRange, const QVect
         if (currShiftX <= (shiftX + shiftRange) && currShiftX >= (shiftX - shiftRange)
                 && currShiftY <= (shiftY + shiftRange) && currShiftY >= (shiftY - shiftRange))
         {
-            shifts.append(QPointF(currShiftX,currShiftY));
+            shifts.append(QPointF(currShiftX, currShiftY));
         }
         else
         {
@@ -604,9 +594,9 @@ QVector<QPointF> createHistogramm(size_t histSize, float shiftRange, const QVect
     // а возможно он уже просто пропал, тогда ничего не изменится
     for(int i = 0; i < shifts.size(); i ++)
     {
-        if (shifts[i].x() == 0 && shifts[i].y() == 0)
+        if (qFuzzyCompare(shifts[i].x(), 0) && qFuzzyCompare(shifts[i].y(), 0))
         {
-            for(quint32 j = 0; j < countObjectsSecond; j++)
+            for(qint32 j = 0; j < countObjectsSecond; j++)
             {
                 currShiftX = firstCoords[i].x() - secondCoords[j].x();
                 currShiftY = firstCoords[i].y() - secondCoords[j].y();
@@ -614,7 +604,7 @@ QVector<QPointF> createHistogramm(size_t histSize, float shiftRange, const QVect
                 if (currShiftX <= (shiftX + shiftRange) && currShiftX >= (shiftX - shiftRange)
                         && currShiftY <= (shiftY + shiftRange) && currShiftY >= (shiftY - shiftRange))
                 {
-                    shifts[i] = QPointF(currShiftX,currShiftY);
+                    shifts[i] = QPointF(currShiftX, currShiftY);
                 }
             }
         }
@@ -628,51 +618,55 @@ qint64 roundUp(qint64 numToRound, qint64 multiple) noexcept
         return numToRound;
 
     auto remainder = std::remainder(numToRound, multiple);
-    if (remainder == 0)
+    if (qFuzzyCompare(remainder, 0))
         return numToRound;
 
     if (numToRound < 0)
-        return -(abs(numToRound) - remainder);
+        return -(std::abs(numToRound) - remainder);
     else
         return numToRound + multiple - remainder;
 }
 
 QDateTime timePrToDateTime(const double timePr, const QDateTime& timePrStartData) noexcept
 {
-    qint64 dtInMsecs = timePr * BOKZMath::mSecsInSec;
+    qint64 dtInMsecs = timePr * mSecsInSec;
     return timePrStartData.addMSecs(dtInMsecs);
 }
 
-QDateTime timePrToDateTime(const quint32 timePr, const QDateTime& timePrStartData) noexcept
+QDateTime timePrToDateTime(const qint32 timePr, const QDateTime& timePrStartData) noexcept
 {
-    qint64 dtInMsecs = static_cast<qint64> (timePr) * BOKZMath::mSecsInSec;
+    qint64 dtInMsecs = static_cast<qint64> (timePr) * mSecsInSec;
     return timePrStartData.addMSecs(dtInMsecs);
 }
 
 QDateTime timePrToDateTime(const quint64 timePr, const QDateTime& timePrStartData) noexcept
 {
-    return timePrStartData.addMSecs(timePr * BOKZMath::mSecsInSec);
+
+    return timePrStartData.addMSecs(timePr * mSecsInSec);
 }
 
-QVector< QVector<float> > calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut) noexcept
+QVector< QVector<double> > calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut) noexcept
 {
 
-    QVector< QVector<float> > trMat(3);
-    float PS,PC,QS,QC,RS,RC;
-    for (int i = 0;i < trMat.size();i ++)
-        trMat[i].resize(3);
+    QVector< QVector<double> > trMat(3);
 
-    PS = sin(pointAzimut * BOKZMath::degreesToRad); PC = cos(pointAzimut * BOKZMath::degreesToRad);
-    QS = sin(pointBeta * BOKZMath::degreesToRad); QC = cos(pointBeta * BOKZMath::degreesToRad);
-    RS = sin(pointAlpha * BOKZMath::degreesToRad); RC = cos(pointAlpha * BOKZMath::degreesToRad);
-    trMat[0][0] = -PC*RS-PS*RC*QS;
-    trMat[0][1] = PC*RC-PS*RS*QS;
-    trMat[0][2] = PS*QC;
-    trMat[1][0] = PS*RS-PC*RC*QS;
-    trMat[1][1] = -PS*RC-PC*RS*QS;
-    trMat[1][2] = PC*QC;
-    trMat[2][0] = QC*RC;
-    trMat[2][1] = QC*RS;
+    for (int i = 0;i < trMat.size(); i++)
+    {
+
+        trMat[i].resize(3);
+    }
+    double PS,PC,QS,QC,RS,RC;
+    PS = sin(pointAzimut * degreesToRad); PC = cos(pointAzimut * degreesToRad);
+    QS = sin(pointBeta * degreesToRad); QC = cos(pointBeta * degreesToRad);
+    RS = sin(pointAlpha * degreesToRad); RC = cos(pointAlpha * degreesToRad);
+    trMat[0][0] = -PC * RS - PS * RC * QS;
+    trMat[0][1] = PC * RC - PS * RS * QS;
+    trMat[0][2] = PS * QC;
+    trMat[1][0] = PS * RS - PC * RC * QS;
+    trMat[1][1] = -PS * RC - PC * RS * QS;
+    trMat[1][2] = PC * QC;
+    trMat[2][0] = QC * RC;
+    trMat[2][1] = QC * RS;
     trMat[2][2] = QS;
 
     return trMat;
@@ -680,77 +674,84 @@ QVector< QVector<float> > calcTransitionMatrix(double pointAlpha, double pointBe
 }
 
 
-void calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut, double M_ornt[3][3]) noexcept
+void calcTransitionMatrix(double pointAlpha, double pointBeta, double pointAzimut, double mOrnt[3][3]) noexcept
 {
-    float PS,PC,QS,QC,RS,RC;
+    double PS,PC,QS,QC,RS,RC;
 
-    PS = sin(pointAzimut * BOKZMath::degreesToRad); PC= cos(pointAzimut * BOKZMath::degreesToRad);
-    QS = sin(pointBeta * BOKZMath::degreesToRad); QC = cos(pointBeta * BOKZMath::degreesToRad);
-    RS = sin(pointAlpha * BOKZMath::degreesToRad); RC = cos(pointAlpha * BOKZMath::degreesToRad);
-    M_ornt[0][0] = -PC*RS-PS*RC*QS;
-    M_ornt[0][1] = PC*RC-PS*RS*QS;
-    M_ornt[0][2] = PS*QC;
-    M_ornt[1][0] = PS*RS-PC*RC*QS;
-    M_ornt[1][1] = -PS*RC-PC*RS*QS;
-    M_ornt[1][2] = PC*QC;
-    M_ornt[2][0] = QC*RC;
-    M_ornt[2][1] = QC*RS;
-    M_ornt[2][2] = QS;
+    PS = sin(pointAzimut * degreesToRad); PC= cos(pointAzimut * degreesToRad);
+    QS = sin(pointBeta * degreesToRad); QC = cos(pointBeta * degreesToRad);
+    RS = sin(pointAlpha * degreesToRad); RC = cos(pointAlpha * degreesToRad);
+    mOrnt[0][0] = -PC * RS - PS * RC * QS;
+    mOrnt[0][1] = PC * RC - PS * RS * QS;
+    mOrnt[0][2] = PS * QC;
+    mOrnt[1][0] = PS * RS - PC * RC * QS;
+    mOrnt[1][1] = -PS * RC - PC * RS * QS;
+    mOrnt[1][2] = PC * QC;
+    mOrnt[2][0] = QC * RC;
+    mOrnt[2][1] = QC * RS;
+    mOrnt[2][2] = QS;
 }
 
 
 void calculateDirectionVector(double alpha, double delta, double& l, double& m, double& n)
 {
-    l = cos(delta * BOKZMath::degreesToRad) * cos(alpha * BOKZMath::degreesToRad);
-    m = cos(delta * BOKZMath::degreesToRad) * sin(alpha * BOKZMath::degreesToRad);
-    n = sin(delta * BOKZMath::degreesToRad);
+    l = cos(delta * degreesToRad) * cos(alpha * degreesToRad);
+    m = cos(delta * degreesToRad) * sin(alpha * degreesToRad);
+    n = sin(delta * degreesToRad);
 }
 
-double calculateScalarProduct(double l_oz, double l_st, double m_oz, double m_st, double n_oz, double n_st) noexcept
+double calculateScalarProduct(double lOz, double lSt, double mOz, double mSt, double nOz, double nSt) noexcept
 {
-    double scalar_product = l_oz * l_st + m_oz * m_st + n_oz * n_st;
+    double scalarProduct = lOz * lSt + mOz * mSt + nOz * nSt;
 
-    if(scalar_product > 1.0)// проверка на выход значения косинуса за диапазон [-1,1]
+    if (scalarProduct > 1.0)// проверка на выход значения косинуса за диапазон [-1,1]
     {
-        scalar_product = 1;
+        scalarProduct = 1;
     }
-    else if(scalar_product < -1.0)
+    else if (scalarProduct < -1.0)
     {
-        scalar_product = -1;
+        scalarProduct = -1;
     }
-    return scalar_product;
+    return scalarProduct;
 }
 
+double calculateScalarProductAngles(double anglesFirst[3], double anglesSecond[3])
+{
+    return acosm(sin(anglesFirst[1] * degreesToRad) * sin(anglesSecond[1] * degreesToRad)
+            + cos(anglesFirst[1] * degreesToRad) * cos(anglesSecond[1] * degreesToRad)
+             * cos((anglesFirst[0] - anglesSecond[0]) * degreesToRad)) * BOKZMath::radToDegrees;
+}
 
 void calculateAlphaDelta(double l, double m, double n, double& alpha, double& delta) noexcept
 {
     Q_UNUSED(m)
     delta = asin(n) * radToDegrees;
-    alpha = atan2m(m,l) * radToDegrees;
+    alpha = atan2m(m, l) * radToDegrees;
     if (alpha < 0)
     {
         alpha += 2 * M_PI;
     }
 }
 
-QVector <quint32> firstMinDistanceTable(RecognizedInfo** distMatrix, quint32 countOfMins, quint32 objectIndex, quint32 size)
+QVector <qint32> firstMinDistanceTable(RecognizedInfo** distMatrix, qint32 countOfMins, qint32 objectIndex, qint32 size)
 {
     QVector <float> vec(countOfMins, std::numeric_limits <float>::max());
-    QVector <quint32> minIndexes(countOfMins, std::numeric_limits <quint32>::max());
+    QVector <qint32> minIndexes(countOfMins, std::numeric_limits <qint32>::max());
 
-    for (quint32 i = 0; i < size; i++)
+    for (qint32 i = 0; i < size; i++)
     {
         if (i == objectIndex) continue;
 
         float dist = 0;
-        if (objectIndex > i) dist = distMatrix[objectIndex][i].distance;
+        if (objectIndex > i)
+            dist = distMatrix[objectIndex][i].distance;
         else dist = distMatrix[i][objectIndex].distance;
 
-        for (quint32 j = 0; j < countOfMins; j++)
+        for (qint32 j = 0; j < countOfMins; j++)
         {
             if (dist < vec[j])
             {
-                for (int k = countOfMins - 1; k >= j; k--)
+                for (qint32 k = countOfMins - 1; k >= j; k--)
                 {
                     if (k == j)
                     {
@@ -770,6 +771,13 @@ QVector <quint32> firstMinDistanceTable(RecognizedInfo** distMatrix, quint32 cou
     }
     return minIndexes;
 }
+void calculateLMNImage(double x, double y, double focus, double lmn[3]) noexcept
+{
+    double length = sqrt(x * x + y * y + focus * focus);
+    lmn[0] = - x / length;
+    lmn[1] = - y / length;
+    lmn[2] = focus / length;
+}
 
 double sqrtm(double x)
 {
@@ -779,8 +787,8 @@ double sqrtm(double x)
         return sqrt(x);
 }
 
-
-int LUPDecompose(double **A, int N, double Tol, int *P) {
+int LUPDecompose(double **A, int N, double Tol, int *P) noexcept
+{
 
     int i, j, k, imax;
     double maxA, *ptr, absA;
@@ -826,15 +834,8 @@ int LUPDecompose(double **A, int N, double Tol, int *P) {
     return 1;  //decomposition done
 }
 
-void calculateLMNImage(double x, double y, double focus, double lmn[3])
+double LUPDeterminant(double **A, int *P, int N) noexcept
 {
-    double length = sqrt(x * x + y * y + focus * focus);
-    lmn[0] =  -x / length;
-    lmn[1] =  -y / length;
-    lmn[2] = focus / length;
-}
-
-double LUPDeterminant(double **A, int *P, int N) {
 
     double det = A[0][0];
 
@@ -847,7 +848,7 @@ double LUPDeterminant(double **A, int *P, int N) {
         return -det;
 }
 
-double getDet(int nElem, double** DRVM)
+double getDet(int nElem, double** DRVM) noexcept
 {
     double **tmpM = new double* [nElem];
     for (int count = 0; count < nElem; count++)
@@ -862,7 +863,7 @@ double getDet(int nElem, double** DRVM)
         }
     }
     int* P = new int [nElem + 1];
-    int status = LUPDecompose(tmpM, nElem, 1e-13, P);
+    int status = LUPDecompose(tmpM, nElem, 1e-10, P);
     if (!status) throw std::logic_error("ERROR LUPDecompose");
     double DET = LUPDeterminant(tmpM, P, nElem);
     for (int j = 0; j < nElem; j++)
@@ -875,7 +876,7 @@ double getDet(int nElem, double** DRVM)
 }
 
 
-void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem)
+void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem) noexcept
 {
 
     double DET, DET_1;
@@ -893,7 +894,7 @@ void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem)
     {
         for (j = 0; j < nElem; j++)
         {
-            minorM(j,i,nElem,DRVM, MH);
+            minorM(j, i, nElem, DRVM, MH);
             if ((i + j) % 2)
             {
                 DRVM_1[i][j] = -getDet(nElem-1, MH) * DET_1;
@@ -906,7 +907,7 @@ void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem)
     }
 }
 
-int minorM(int z,int x,int N, double** A,double**C)
+int minorM(int z,int x,int N, double** A,double**C) noexcept
 {
     int i,h,j,k;
     for(h = 0,i = 0; i < N - 1 ; i++, h++)
@@ -923,50 +924,51 @@ int minorM(int z,int x,int N, double** A,double**C)
     return 0;
 }
 
-double calculateDistorsio(double point_c, double coord_a, double alpha,  QList <double>& distorsio_coef)
+double calculateDistorsio(double coordC, double coordA, double coordB, const QList<double>& distorsioCoef) noexcept
 {
-
-    double delta = distorsio_coef[0] + distorsio_coef[1]*coord_a + distorsio_coef[2] * alpha
-            +distorsio_coef[3] * pow( coord_a,2) + distorsio_coef[4] * coord_a * alpha
-            +distorsio_coef[5] * pow(alpha,2)+ distorsio_coef[6] * pow( coord_a,3)
-            +distorsio_coef[7] * pow( coord_a,2) * alpha + distorsio_coef[8]* coord_a * pow(alpha,2)
-            +distorsio_coef[9] * pow(alpha,3) + distorsio_coef[10] * pow(coord_a,4)
-            +distorsio_coef[11] * pow(coord_a,3) * alpha + distorsio_coef[12] * pow(alpha,2) * pow(coord_a,2)
-            +distorsio_coef[13] * coord_a * pow(alpha,3) + distorsio_coef[14] * pow(alpha,4)
-            +distorsio_coef[15] * pow(coord_a,5) + distorsio_coef[16] * pow(coord_a,4) * alpha
-            +distorsio_coef[17] * pow(coord_a,3) * pow(alpha,2)
-            +distorsio_coef[18] * pow(coord_a,2) * pow(alpha,3)
-            +distorsio_coef[19] * coord_a * pow(alpha,4)
-            +distorsio_coef[20] * pow(alpha,5);// +
-//            +distorsio_coef[21]*x_6+distorsio_coef[22]*x_5*y[i]+distorsio_coef[23]*x_4*y_2+distorsio_coef[24]*x_3*y_3+distorsio_coef[25]*x_2*y_4+distorsio_coef[26]*x[i]*y_5+distorsio_coef[27]*y_6
-//            +distorsio_coef[28]*x_7+distorsio_coef[29]*x_6*y[i]+distorsio_coef[30]*x_5*y_2+distorsio_coef[31]*x_4*y_3+distorsio_coef[32]*x_3*y_4+distorsio_coef[33]*x_2*y_5+distorsio_coef[34]*x[i]*y_6+distorsio_coef[35]*y_7
-//            +distorsio_coef[36]*x_8+distorsio_coef[37]*x_7*y[i]+distorsio_coef[38]*x_6*y_2+distorsio_coef[39]*x_5*y_3+distorsio_coef[40]*x_4*y_4+distorsio_coef[41]*x_3*y_5+distorsio_coef[42]*x_2*y_6+distorsio_coef[43]*x[i]*y_7+distorsio_coef[44]*y_8
-//            +distorsio_coef[45]*x_9+distorsio_coef[46]*x_8*y[i]+distorsio_coef[47]*x_7*y_2+distorsio_coef[48]*x_6*y_3+distorsio_coef[49]*x_5*y_4+distorsio_coef[50]*x_4*y_5+distorsio_coef[51]*x_3*y_6+distorsio_coef[52]*x_2*y_7+distorsio_coef[53]*x[i]*y_8+distorsio_coef[54]*y_9;;
-
-    return point_c - delta;
+    return coordC - calculateDistorsioDelta(coordA, coordB, distorsioCoef);
 }
 
-double calculateDistorsioDelta(double coord_a, double alpha, QList<double> &distorsio_coef)
+double calculateDistorsioDelta(double coordA, double coordB, const QList<double>& distorsioCoef) noexcept
 {
 
-    double delta = distorsio_coef[0] + distorsio_coef[1]*coord_a + distorsio_coef[2] * alpha
-            +distorsio_coef[3] * pow( coord_a,2) + distorsio_coef[4] * coord_a * alpha
-            +distorsio_coef[5] * pow(alpha,2)+ distorsio_coef[6] * pow( coord_a,3)
-            +distorsio_coef[7] * pow( coord_a,2) * alpha + distorsio_coef[8]* coord_a * pow(alpha,2)
-            +distorsio_coef[9] * pow(alpha,3) + distorsio_coef[10] * pow(coord_a,4)
-            +distorsio_coef[11] * pow(coord_a,3) * alpha + distorsio_coef[12] * pow(alpha,2) * pow(coord_a,2)
-            +distorsio_coef[13] * coord_a * pow(alpha,3) + distorsio_coef[14] * pow(alpha,4)
-            +distorsio_coef[15] * pow(coord_a,5) + distorsio_coef[16] * pow(coord_a,4) * alpha
-            +distorsio_coef[17] * pow(coord_a,3) * pow(alpha,2)
-            +distorsio_coef[18] * pow(coord_a,2) * pow(alpha,3)
-            +distorsio_coef[19] * coord_a * pow(alpha,4)
-            +distorsio_coef[20] * pow(alpha,5);
+    double delta = distorsioCoef[0] + distorsioCoef[1] * coordA + distorsioCoef[2] * coordB
+            +distorsioCoef[3] * pow(coordA, 2) + distorsioCoef[4] * coordA * coordB
+            +distorsioCoef[5] * pow(coordB, 2)+ distorsioCoef[6] * pow( coordA, 3)
+            +distorsioCoef[7] * pow(coordA, 2) * coordB + distorsioCoef[8] * coordA * pow(coordB, 2)
+            +distorsioCoef[9] * pow(coordB, 3) + distorsioCoef[10] * pow(coordA, 4)
+            +distorsioCoef[11] * pow(coordA, 3) * coordB + distorsioCoef[12] * pow(coordB, 2) * pow(coordA, 2)
+            +distorsioCoef[13] * coordA * pow(coordB, 3) + distorsioCoef[14] * pow(coordB, 4)
+            +distorsioCoef[15] * pow(coordA, 5) + distorsioCoef[16] * pow(coordA, 4) * coordB
+            +distorsioCoef[17] * pow(coordA, 3) * pow(coordB, 2)
+            +distorsioCoef[18] * pow(coordA, 2) * pow(coordB, 3)
+            +distorsioCoef[19] * coordA * pow(coordB,4)
+            +distorsioCoef[20] * pow(coordB, 5);
+    // +
+        //            +distorsioCoef[21]*x_6+distorsioCoef[22]*x_5*y[i]+distorsioCoef[23]*x_4*y_2+distorsioCoef[24]*x_3*y_3+distorsioCoef[25]*x_2*y_4+distorsioCoef[26]*x[i]*y_5+distorsioCoef[27]*y_6
+        //            +distorsioCoef[28]*x_7+distorsioCoef[29]*x_6*y[i]+distorsioCoef[30]*x_5*y_2+distorsioCoef[31]*x_4*y_3+distorsioCoef[32]*x_3*y_4+distorsioCoef[33]*x_2*y_5+distorsioCoef[34]*x[i]*y_6+distorsioCoef[35]*y_7
+        //            +distorsioCoef[36]*x_8+distorsioCoef[37]*x_7*y[i]+distorsioCoef[38]*x_6*y_2+distorsioCoef[39]*x_5*y_3+distorsioCoef[40]*x_4*y_4+distorsioCoef[41]*x_3*y_5+distorsioCoef[42]*x_2*y_6+distorsioCoef[43]*x[i]*y_7+distorsioCoef[44]*y_8
+        //            +distorsioCoef[45]*x_9+distorsioCoef[46]*x_8*y[i]+distorsioCoef[47]*x_7*y_2+distorsioCoef[48]*x_6*y_3+distorsioCoef[49]*x_5*y_4+distorsioCoef[50]*x_4*y_5+distorsioCoef[51]*x_3*y_6+distorsioCoef[52]*x_2*y_7+distorsioCoef[53]*x[i]*y_8+distorsioCoef[54]*y_9;;
+
 
     return delta;
 }
 
 
-void rotateOY(double alpha, double mIn[3][3], double mOut[3][3])
+bool checkQuatNorm(double q[4]) noexcept
+{
+    double len = q[0] * q[0] +
+            q[1] * q[1] +
+            q[2] * q[2] +
+            q[3] * q[3];
+    if (qAbs(len - 1.0) < 0.000001)
+        return true;
+    else
+        return false;
+
+}
+
+void rotateOY(double alpha, double mIn[3][3], double mOut[3][3]) noexcept
 {
     double m[3][3] = {{cos(alpha), 0, sin(alpha)},
                       {0, 1, 0},
@@ -975,7 +977,7 @@ void rotateOY(double alpha, double mIn[3][3], double mOut[3][3])
 
 }
 
-void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3])
+void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3]) noexcept
 {
     double m[3][3] = {{cos(alpha), -sin(alpha), 0},
                       {sin(alpha), cos(alpha), 0},
@@ -983,7 +985,7 @@ void rotateOZ(double alpha, double mIn[3][3], double mOut[3][3])
     multiplyMatrix(m, mIn, mOut);
 }
 
-void rotateOX(double alpha, double mIn[3][3], double mOut[3][3])
+void rotateOX(double alpha, double mIn[3][3], double mOut[3][3]) noexcept
 {
     double m[3][3] = {{1, 0, 0},
                       {0, cos(alpha), -sin(alpha)},

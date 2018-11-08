@@ -2,6 +2,8 @@
 #include "ui_mainwindow.h"
 
 
+
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
@@ -19,6 +21,120 @@ MainWindow::MainWindow(QWidget *parent) :
     plotter->setSelectable(QCP::SelectionType::stNone);
     plotter->setUseLegend(false);
     plotter->setAutoReplot(false);
+
+    //QFile file1 ("//Camera20/data/БОКЗ-М60-1000/БОКЗ-М60-1000 №12/Небо три прибора - 2018.10.31/30.10.2018 22.50.46 - 12 13 14/quatinfo_f1.txt");
+    QFile file1 ("//Camera20/data/БОКЗ-М60-1000/БОКЗ-М60-1000 №12/Небо три прибора - 2018.11.05/05.11.2018 22.26.52 - 12 13 14 повороты 45 угл.мин-с + вибро/quatinfo_f.txt");
+    QVector <QPair <int, QVector<double>>> f;
+    if (file1.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file1);
+        QString line;
+        while (in.readLineInto(&line))
+        {
+            QStringList list = line.split("\t");
+
+            f.append(qMakePair <int, QVector<double>>(list[0].toInt(), QVector<double> {list[1].toDouble(), list[2].toDouble(), list[3].toDouble(), list[4].toDouble(),
+                                                                                        list[5].toDouble(), list[6].toDouble()/*, list[7].toDouble(), list[8].toDouble(), list[9].toDouble()*/}));
+        }
+    }
+    //QFile file2 ("//Camera20/data/БОКЗ-М60-1000/БОКЗ-М60-1000 №12/Небо три прибора - 2018.10.31/30.10.2018 22.50.46 - 12 13 14/quatinfo_s2.txt");
+    QFile file2 ("//Camera20/data/БОКЗ-М60-1000/БОКЗ-М60-1000 №12/Небо три прибора - 2018.11.05/05.11.2018 22.26.52 - 12 13 14 повороты 45 угл.мин-с + вибро/quatinfo_s.txt");
+    QVector <QPair <int, QVector<double>>> s;
+    if (file2.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file2);
+        QString line;
+        while (in.readLineInto(&line))
+        {
+            QStringList list = line.split("\t");
+            s.append(qMakePair<int, QVector<double>>(list[0].toInt(), QVector<double>{list[1].toDouble(), list[2].toDouble(), list[3].toDouble(), list[4].toDouble(),
+                                                                                      list[5].toDouble(), list[6].toDouble()/*, list[7].toDouble(), list[8].toDouble(), list[9].toDouble()*/}));
+        }
+    }
+    //QFile file3 ("//Camera20/data/БОКЗ-М60-1000/БОКЗ-М60-1000 №12/Небо три прибора - 2018.10.31/30.10.2018 22.50.46 - 12 13 14/quatinfo_t3.txt");
+    QFile file3 ("//Camera20/data/БОКЗ-М60-1000/БОКЗ-М60-1000 №12/Небо три прибора - 2018.11.05/05.11.2018 22.26.52 - 12 13 14 повороты 45 угл.мин-с + вибро/quatinfo_t.txt");
+    QVector <QPair <int, QVector<double>>> t;
+    if (file3.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file3);
+        QString line;
+        while (in.readLineInto(&line))
+        {
+            QStringList list = line.split("\t");
+            t.append(qMakePair<int, QVector<double>>(list[0].toInt(), QVector<double> {list[1].toDouble(), list[2].toDouble(), list[3].toDouble(), list[4].toDouble(),
+                                                                                       list[5].toDouble(), list[6].toDouble()/*, list[7].toDouble(), list[8].toDouble(), list[9].toDouble()*/}));
+        }
+    }
+    std::sort(f.begin(), f.end(), [](auto& a, auto& b) {return a.first < b.first;});
+    std::sort(s.begin(), s.end(), [](auto& a, auto& b) {return a.first < b.first;});
+    std::sort(t.begin(), t.end(), [](auto& a, auto& b) {return a.first < b.first;});
+
+    QFile outf("out90.txt");
+    if (outf.open(QIODevice::WriteOnly))
+    {
+        QTextStream out(&outf);
+        out << "TimePr\t3-1 OZ\t3-2 OZ\t2-1 OZ\t3-1 XY\t3-2 XY\t2-1 XX\tdet1\tloc1\tdet2\tloc2\tdet3\tloc3"
+               "\talpha1\tdelta1\taz1\talpha2\tdelta2\taz2\talpha3\tdelta3\taz3\n";
+        for (int i = 0; i < t.size(); i++)
+        {
+            int tpr = t[i].first;
+            auto it1 = std::find_if(f.begin(), f.end(), [tpr](auto& a){return a.first  == tpr;});
+            auto it2 = std::find_if(s.begin(), s.end(), [tpr](auto& a){return a.first  == tpr;});
+            if (it1 != f.end() && it2 != s.end())
+            {
+                double quat3[4] = {t[i].second[0], t[i].second[1], t[i].second[2], t[i].second[3]};
+                double angles3[3];
+
+
+                double quat1[4] = {it1->second[0], it1->second[1], it1->second[2], it1->second[3]};
+                double angles1[3];
+
+
+                double quat2[4] = {it2->second[0], it2->second[1], it2->second[2], it2->second[3]};
+                double angles2[3];
+
+
+                quatToEkvA(quat3, angles3, AxisType::xAxis);
+                quatToEkvA(quat1, angles1, AxisType::yAxis);
+                double Ox31 = calculateScalarProductAngles(angles3, angles1);
+                quatToEkvA(quat2, angles2, AxisType::yAxis);
+                double Ox32 = calculateScalarProductAngles(angles3, angles2);
+                quatToEkvA(quat1, angles1, AxisType::xAxis);
+                double Ox12 = calculateScalarProductAngles(angles2, angles1);
+
+
+
+                //                double Oz31 = calculateAngleAxis(quat3, quat1, AxisType::zAxis);
+                //                double Oz32 = calculateAngleAxis(quat3, quat2, AxisType::zAxis);
+                //                double Oz12 = calculateAngleAxis(quat2, quat1, AxisType::zAxis);
+                quatToEkvA(quat3, angles3);
+                quatToEkvA(quat1, angles1);
+                quatToEkvA(quat2, angles2);
+                double Oz31 = calculateScalarProductAngles(angles3, angles1);
+                double Oz32 = calculateScalarProductAngles(angles3, angles2);
+                double Oz12 = calculateScalarProductAngles(angles2, angles1);
+
+                //                double Ox31 = calculateAngleAxis(quat3, quat1, AxisType::xAxis);
+                //                double Ox32 = calculateAngleAxis(quat3, quat2, AxisType::xAxis);
+                //                double Ox12 = calculateAngleAxis(quat2, quat1, AxisType::xAxis);
+
+                out << tpr << "\t" << QString::number(Oz31, 'g', 10) << "\t" <<
+                       QString::number(Oz32,'g', 10) << "\t" <<
+                       QString::number(Oz12,'g', 10) << "\t" <<
+                       QString::number(Ox31,'g', 10) << "\t" <<
+                       QString::number(Ox32,'g', 10) << "\t" <<
+                       QString::number(Ox12,'g', 10) << "\t" <<
+                       it1->second[4] << "\t" << it1->second[5] << "\t" <<
+                       it2->second[4] << "\t" << it2->second[5] << "\t" <<
+                       t[i].second[4] << "\t" << t[i].second[5] << "\t" <<
+                       QString::number(angles1[0],'g', 10) << "\t" << QString::number(angles1[1],'g', 10) << "\t" << QString::number(angles1[2],'g', 10) << "\t" <<
+QString::number(angles2[0],'g', 10) << "\t" << QString::number(angles2[1],'g', 10) << "\t" << QString::number(angles2[2],'g', 10) << "\t" <<
+ QString::number(angles3[0],'g', 10) << "\t" << QString::number(angles3[1],'g', 10) << "\t" << QString::number(angles3[2],'g', 10) << "\n";
+                //QString::number(angleOzi31,'g', 10) << "\t" << QString::number(angleOzi32,'g', 10) << "\t" << QString::number(angleOzi12,'g', 10) << "\n" ;
+            }
+        }
+    }
+
 
 }
 
@@ -130,8 +246,8 @@ QBitArray MainWindow::setFlags()
 
 void MainWindow::printResults(Results& res)
 {
-    ui->textEdit->append("\n=================================================");
-    ui->textEdit->append("\nРезультаты: \n");
+    ui->textEdit->append("/n=================================================");
+    ui->textEdit->append("/nРезультаты: /n");
     ui->textEdit->append(QString("%1%2%3%4%5%6%7%8")
                          .arg("Фокус", -10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
                          .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
@@ -146,7 +262,7 @@ void MainWindow::printResults(Results& res)
 }
 void MainWindow::printErrors(ResultErrors& err)
 {
-    ui->textEdit->append("\nОшибки (углы в секундах, остальное в микронах): \n ");
+    ui->textEdit->append("/nОшибки (углы в секундах, остальное в микронах): /n ");
     ui->textEdit->append(QString("%1%2%3%4%5%6%7%8%9%10%11")
                          .arg("Фокус", 10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
                          .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
@@ -158,17 +274,17 @@ void MainWindow::printErrors(ResultErrors& err)
                          .arg(err.dalphaTwoOY, 12, 'f', 2, ' ').arg(err.dalphaTwoOX, 14, 'f', 2, ' ')
                          .arg(err.dgammaOZ, 14, 'f', 2, ' ').arg(err.dgammaOY, 14, 'f', 2, ' ').arg(err.dgammaOX, 13, 'f', 2, ' ')
                          .arg(err.mx, 10, 'f', 2, ' ').arg(err.my, 10, 'f', 2, ' ').arg(err.mxy, 10, 'f', 2, ' '));
-    ui->textEdit->append("\n=================================================");
+    ui->textEdit->append("/n=================================================");
 
 }
 
 void MainWindow::printAngles (const QString& before, const QString& after)
 {
-    ui->textEdit->append("\nУглы до дисторсии:\n");
+    ui->textEdit->append("/nУглы до дисторсии:/n");
     ui->textEdit->append(before);
     if (!after.isEmpty())
     {
-        ui->textEdit->append("\nУглы после дисторсии:\n");
+        ui->textEdit->append("/nУглы после дисторсии:/n");
         ui->textEdit->append(after);
     }
 
@@ -183,7 +299,7 @@ void MainWindow::saveErrors(ResultErrors& err)
                .arg("Фокус", -10, ' ').arg("ЛямбдаОУ", -10, ' ').arg("ЛямбдаОХ",-10, ' ')
                .arg("Альфа2ОУ", -10, ' ').arg("Альфа2ОХ", -10, ' ')
                .arg("ГаммаОZ", -10, ' ').arg("ГаммаОУ", -10, ' ').arg("ГаммаОХ", -10, ' ')
-               .arg("mx", -10, ' ').arg("my", -10, ' ').arg("mxy", -10, ' ') << "\n";
+               .arg("mx", -10, ' ').arg("my", -10, ' ').arg("mxy", -10, ' ') << "/n";
 
         out << QString("%1%2%3%4%5%6%7%8%9%10%11")//%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11
                .arg(err.dfoc, 10, 'f', 2, ' ')
@@ -203,7 +319,7 @@ void MainWindow::saveResults(Results& res)
         out << QString("%1%2%3%4%5%6%7%8")
                .arg("Фокус", 10, ' ').arg("ЛямбдаОУ", 10, ' ').arg("ЛямбдаОХ", 10, ' ')
                .arg("Альфа2ОУ", 10, ' ').arg("Альфа2ОХ", 10, ' ')
-               .arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' ') << "\n";
+               .arg("ГаммаОУ", 10, ' ').arg("ГаммаОХ", 10, ' ') << "/n";
         out << QString("%1%2%3%4%5%6%7%8")
                .arg(res.foc, 8, ' ').arg(res.lambdaOY, 8, ' ')
                .arg(res.lambdaOX, 8, ' ').arg(res.alphaTwoOY, 8, ' ')
@@ -230,7 +346,7 @@ void MainWindow::on_pushButton_2_clicked()
     {
         if (!checkChoose())
         {
-            ui->textEdit->append("Не выбраны параметры для расчёта\n");
+            ui->textEdit->append("Не выбраны параметры для расчёта/n");
             return;
         }
 
@@ -243,7 +359,15 @@ void MainWindow::on_pushButton_2_clicked()
         task.setMeasureTheshold(ui->measureThesholdSpinBox->value());
         if (ui->modelRadioButton->isChecked())
         {
-            task.readModelData(ui->pathLineEdit->text(), true);
+            if (ui->allFrameRadioButton->isChecked())
+            {
+                task.readFullModelData(ui->pathLineEdit->text(), true);
+            }
+            else
+            {
+                task.readTriangleModelData(ui->pathLineEdit->text(), true);
+                task.readFullModelData(ui->pathLineEdit->text(), true);
+            }
         }
         else
         {
@@ -287,7 +411,17 @@ void MainWindow::on_pushButton_2_clicked()
             flags.setBit(DERIVATIVES::FOCUS, false);
         }
 
-        task.calculate(flags, results, errors);
+        if (ui->allFrameRadioButton->isChecked())
+        {
+            task.calculateFull(flags, results, errors);
+        }
+        else
+        {
+            task.calculateTriangle(false, results, errors);
+            task.calculateFull(flags, results, errors);
+            //task.calculateTriangle(true, results, errors);
+            //return;
+        }
         task.saveShifts("before_dist");
         auto angBeforeDist = task.printTestTable("ang_distance_before_dist.txt", false, results.foc);
         QVector <QString> angAfterDist;
@@ -313,9 +447,9 @@ void MainWindow::on_pushButton_2_clicked()
             {
                 flags.setBit(DERIVATIVES::FOCUS, false);
             }
-            task.calculate(flags, results, errors);
+            task.calculateFull(flags, results, errors);
             angAfterDist = task.printTestTable("ang_distance_after_dist.txt", true, results.foc);
-            ui->textEdit->append("\nУглы после дисторсии:\n");
+            ui->textEdit->append("/nУглы после дисторсии:/n");
             ui->textEdit->append(angAfterDist[0]);
             task.saveShifts("after_dist");
         }
@@ -378,7 +512,7 @@ void MainWindow::on_pushButton_2_clicked()
     }
     catch (std::exception& e)
     {
-        ui->textEdit->append(QString(e.what()) + "\n");
+        ui->textEdit->append(QString(e.what()) + "/n");
     }
 
 }
@@ -406,7 +540,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
             [](auto& i){return i.contains("REZ");});
     if (coordFiles.size() == 0 || angleFiles.size() == 0)
     {
-        ui->textEdit->append("Нечего объединять. Один из типов файлов отсутствует\n");
+        ui->textEdit->append("Нечего объединять. Один из типов файлов отсутствует/n");
         return;
     }
     QVector <QStringList> coordFilesData;
@@ -419,13 +553,13 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
             QString line;
             while (in.readLineInto(&line))
             {
-                QStringList list = line.split("\t", QString::SplitBehavior::SkipEmptyParts);
+                QStringList list = line.split("/t", QString::SplitBehavior::SkipEmptyParts);
                 coordFilesData.append(list);
             }
         }
         else
         {
-            ui->textEdit->append("Не удалось открыть файл" + i + "\n");
+            ui->textEdit->append("Не удалось открыть файл" + i + "/n");
             return;
         }
         file.close();
@@ -434,7 +568,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     {
 
         qint32 pos =
-                coordFilesData[i][13].indexOf(QRegExp("(\\\\)(?!.*\\\\)"));
+                coordFilesData[i][13].indexOf(QRegExp("(////)(?!.*////)"));
         coordFilesData[i][13] =
                 coordFilesData[i][13].mid(pos);
     }
@@ -449,13 +583,13 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
             QString line;
             while (in.readLineInto(&line))
             {
-                QStringList list = line.split("\t", QString::SplitBehavior::SkipEmptyParts);
+                QStringList list = line.split("/t", QString::SplitBehavior::SkipEmptyParts);
                 anglesFilesData.append(list);
             }
         }
         else
         {
-            ui->textEdit->append("Не удалось открыть файл" + i + "\n");
+            ui->textEdit->append("Не удалось открыть файл" + i + "/n");
             return;
         }
         file.close();
@@ -464,7 +598,7 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
     {
 
         qint32 pos =
-                anglesFilesData[i][1].indexOf(QRegExp("(\\\\)(?!.*\\\\)"));//QRegExp("\\\\(?:(?!\\\\))\\d\\d\\.")
+                anglesFilesData[i][1].indexOf(QRegExp("(////)(?!.*////)"));//QRegExp("////(?:(?!////))//d//d//.")
         anglesFilesData[i][1] =
                 anglesFilesData[i][1].mid(pos);
     }
@@ -506,20 +640,20 @@ void MainWindow::on_chooseRawFilesPushButton_clicked()
         QTextStream out(&file);
         if (ui->formatTypeComboBox->currentIndex() == 0)
         {
-            out << "X\t" << "Y\t" << "Alpha\t" << "Azimut\n";
+            out << "X/t" << "Y/t" << "Alpha/t" << "Azimut/n";
             for (const auto& i : resFilesData)
             {
-                out << QString("%1\t%2\t%3\t%4\n")
+                out << QString("%1/t%2/t%3/t%4/n")
                        .arg(i[1]).arg(i[2])
                         .arg(i[14]).arg(i[15]);
             }
         }
         else
         {
-            out << "Data	Time	File	X	Y	I	N	maxI	Aldeg	Gm deg\n";
+            out << "Data	Time	File	X	Y	I	N	maxI	Aldeg	Gm deg/n";
             for (const auto& i : resFilesData)
             {
-                out << QString("%1\t%2\t%3\t%4\t%5\t%6\t%7\t%8\t%9\t%10\n")
+                out << QString("%1/t%2/t%3/t%4/t%5/t%6/t%7/t%8/t%9/t%10/n")
                        .arg("123").arg("123").arg("123").arg(i[1]).arg(i[2])
                         .arg("123").arg("123").arg("123")
                         .arg(i[14]).arg(i[15]);
@@ -538,10 +672,10 @@ void MainWindow::on_saveToolButton_clicked()
         if (file.open(QIODevice::WriteOnly))
         {
             QTextStream out (&file);
-            out << "X	Y	Alpha	Azimut\n";
+            out << "X	Y	Alpha	Azimut/n";
             for (int i = 0; i < editingList.size(); i++)
             {
-                out << editingList[i] << "\n";
+                out << editingList[i] << "/n";
             }
         }
         file.close();

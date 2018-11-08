@@ -9,6 +9,7 @@
 #include <QBitArray>
 #include <mathfunc.h>
 #include <gms.h>
+#include <functional>
 using namespace std;
 using namespace BOKZMath;
 // изначально передаются первые приближения
@@ -90,6 +91,27 @@ enum X_AXIS_DIRECTION
     REVERSE_X,
     REVERSE_Y
 };
+    static constexpr const qint32 countPointsTriangle = 3;
+struct TrianglePattern
+{
+
+    TrianglePattern () : points(countPointsTriangle) {}
+
+//    TrianglePattern(TrianglePattern&& fr) : firstPoint(qMove(fr.firstPoint)),
+//        secondPoint(qMove(fr.secondPoint)), thirdPoint(qMove(fr.thirdPoint)),
+//        points(qMove(fr.points))
+//    {}
+
+//    TrianglePattern(TrianglePattern& fr) : firstPoint(fr.firstPoint),
+//        secondPoint(fr.secondPoint), thirdPoint(fr.thirdPoint),
+//        points(fr.points){}
+
+//    QPointF  firstPoint;
+//    QPointF  secondPoint;
+//    QPointF  thirdPoint;
+   /* const*/ //QVector <std::reference_wrapper<QPointF>> points;
+    QVector <QPointF> points;
+};
 
 class MLSTask : public QObject
 {
@@ -112,11 +134,15 @@ public:
 
     explicit MLSTask(QObject* parent = nullptr);
 
-    void readModelData(const QString& filename, bool skipFirstRow);
+    void readFullModelData(const QString& filename, bool skipFirstRow);
+
+    void readTriangleModelData(const QString& filename, bool skipFirstRow);
 
     void readRealData(const QString& filename, bool skipFirstRow, bool reverse = false);
 
-    void calculate(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
+    void calculateFull(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
+
+    void calculateTriangle(bool distorsio, Results& results, ResultErrors& errors);
 
     void fitFocusByLines(const QBitArray& derivativeFlags, Results& results, ResultErrors& errors);
 
@@ -180,20 +206,24 @@ private:
 
     int gaussObr(int cntStar, double mass[55][55], double mObr[55][55]);
 
+    double calculateAngle(const QPointF& fPoint, const QPointF& sPoint, double focus, QList <double>& distorsioCoefX, QList <double>& distorsioCoefY);
+
     double pixelSize;
     quint32 thershold = 2;
     quint32 frameX;
     quint32 frameY;
     QVector <QPointF> frame;
     QVector <QPointF> initFrame;
+    QVector < QVector <TrianglePattern> > triangleFrame;
     RotateAngles rotAngles;
     DistorsioData distData;
     QList <double> xDistV;
     QList <double> yDistV;
     X_AXIS_DIRECTION d = UP;
+
     static constexpr const double deltaAngle = 1. / 60. / 60. * degreesToRad * 10;
     static constexpr const double deltaFocus = 0.0001;
-    static constexpr const qint32 maxDer = 10000;
+    static constexpr const qint32 maxDer = 100000;
     static constexpr const qint32 maxParams = 55;
     static constexpr const qint32 maxIterations = 500;
     static constexpr const double maxError = 0.000005;

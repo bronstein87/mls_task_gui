@@ -19,6 +19,7 @@ struct PointDiff
 };
 
 using namespace std;
+using namespace BOKZMath;
 namespace Ui {
 class MainWindow;
 }
