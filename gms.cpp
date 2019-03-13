@@ -15,7 +15,7 @@ GMS::GMS():
 
 
 
-GMS::GMS(const double& gradAngle)
+GMS::GMS(double gradAngle)
 {
 
     gradus = gradAngle;
@@ -42,7 +42,7 @@ GMS::GMS( const qint32 _gradus, const qint32 _minutes, const double _seconds)
 
 
 
-void GMS::setAngleValue(const double& gradAngle)
+void GMS::setAngleValue(double gradAngle)
 {
     gradus = gradAngle;
     minutes = std::abs(gradAngle - gradus) * 60;

@@ -5,8 +5,8 @@
 class GMS
 {
 public:
-        explicit GMS(const double&);
-        explicit GMS( const qint32, const qint32, const double);
+        explicit GMS(double);
+        explicit GMS(const qint32, const qint32, const double);
         explicit GMS();
         GMS(const GMS&)                   =default;
         GMS(GMS&& )                       =default;
@@ -15,16 +15,16 @@ public:
         ~GMS()                            =default;
         double transToGrad();
         double transToRad();
-        qint32 getGradus() const{
+        qint32 getGradus() const {
             return gradus;
         }
-        qint32 getMinutes() const{
+        qint32 getMinutes() const {
             return minutes;
         }
-        double getSeconds() const{
+        double getSeconds() const {
             return seconds;
         }
-        void setAngleValue(const double&);
+        void setAngleValue(double);
         void setGradus(const qint32);
         void setMinutes(const qint32);
         void setSeconds(const double);

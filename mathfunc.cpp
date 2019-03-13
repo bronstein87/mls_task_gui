@@ -372,21 +372,26 @@ void quatToEkvA(const double Quat[], double EkvA[3], AxisType axis) noexcept
 double acosm(double xf) noexcept
 {
     if (xf>1.) xf = 1.;
-    else if (xf<-1.) xf =- 1.;
+    else if (xf<-1.) xf -= 1.;
     return acos(xf);
+}
+
+double asinm(double x) noexcept
+{
+    if (x > 1.) x = 1.;
+    else if (x < -1.) x = -1.;
+
+    return asin(x);
 }
 
 void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept
 {
-    double buf;
-    int i, j, k;
-
-    for(i = 0;i < 3; i++)
+    for (int i = 0; i < 3; i++)
     {
-        for(j = 0;j < 3; j++)
+        for (int j = 0; j < 3; j++)
         {
-            buf = 0;
-            for (k = 0;k < 3; k++)
+            double buf = 0;
+            for (int k = 0; k < 3; k++)
             {
                 buf = buf + Matr1[i][k] * Matr2[k][j];
             }
@@ -403,14 +408,14 @@ void getAngularDisplacementFromOrientMatr(const double mOrnt_pr[3][3],const doub
     // считаем матрицу, дающую противоположный поворот
     for (int i = 0;i < 3; i++)
     {
-        for (int j = 0;j < 3;j ++)
+        for (int j = 0; j < 3; j++)
         {
             MT_ornt_pr[i][j] = mOrnt_pr[j][i];
         }
     }
     // перемножаем, чтобы получить разницу
     multiplyMatrix(mOrnt, MT_ornt_pr, dMB);
-    delta=(dMB[0][0] + dMB[1][1] + dMB[2][2] - 1.)/2.;
+    delta=(dMB[0][0] + dMB[1][1] + dMB[2][2] - 1.) / 2.;
     // если угол очень маленький, то считаем дельта равной 0
     if (delta > 1) delta = 1;
 
@@ -724,13 +729,13 @@ double calculateScalarProductAngles(double anglesFirst[3], double anglesSecond[3
 
 void calculateAlphaDelta(double l, double m, double n, double& alpha, double& delta) noexcept
 {
-    Q_UNUSED(m)
     delta = asin(n) * radToDegrees;
-    alpha = atan2m(m, l) * radToDegrees;
+    alpha = atan2m(m, l);
     if (alpha < 0)
     {
         alpha += 2 * M_PI;
     }
+    alpha *= radToDegrees;
 }
 
 QVector <qint32> firstMinDistanceTable(RecognizedInfo** distMatrix, qint32 countOfMins, qint32 objectIndex, qint32 size)
@@ -848,7 +853,29 @@ double LUPDeterminant(double **A, int *P, int N) noexcept
         return -det;
 }
 
-double getDet(int nElem, double** DRVM) noexcept
+void LUPInvert(double** A, int* P, int N, double** IA) noexcept
+{
+    for (int j = 0; j < N; j++) {
+        for (int i = 0; i < N; i++) {
+            if (P[i] == j)
+                IA[i][j] = 1.0;
+            else
+                IA[i][j] = 0.0;
+
+            for (int k = 0; k < i; k++)
+                IA[i][j] -= A[i][k] * IA[k][j];
+        }
+
+        for (int i = N - 1; i >= 0; i--) {
+            for (int k = i + 1; k < N; k++)
+                IA[i][j] -= A[i][k] * IA[k][j];
+
+            IA[i][j] = IA[i][j] / A[i][i];
+        }
+    }
+}
+
+double getDet(int nElem, double** DRVM)
 {
     double **tmpM = new double* [nElem];
     for (int count = 0; count < nElem; count++)
@@ -876,38 +903,27 @@ double getDet(int nElem, double** DRVM) noexcept
 }
 
 
-void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem) noexcept
+void invertMatrix(double** DRVM, double** DRVM_1, int nElem)
 {
-
-    double DET, DET_1;
-    short i,j;
-
-    double **MH = new double* [nElem];
+    double** tmpM = new double* [nElem];
     for (int count = 0; count < nElem; count++)
     {
-        MH[count] = new double [nElem];
+        tmpM[count] = new double [nElem];
     }
-
-    DET = getDet(nElem, DRVM);
-    DET_1 = 1/DET;
-    for (i = 0; i < nElem; i++)
+    for (int i = 0; i < nElem; i++)
     {
-        for (j = 0; j < nElem; j++)
+        for (int j = 0; j < nElem; j++)
         {
-            minorM(j, i, nElem, DRVM, MH);
-            if ((i + j) % 2)
-            {
-                DRVM_1[i][j] = -getDet(nElem-1, MH) * DET_1;
-            }
-            else
-            {
-                DRVM_1[i][j] =  getDet(nElem-1, MH) * DET_1;
-            }
+            tmpM[i][j] = DRVM[i][j];
         }
     }
+    int* P = new int [nElem + 1];
+    int status = LUPDecompose(tmpM, nElem, 1e-10, P);
+    if (!status) throw std::logic_error("ERROR LUPDecompose");
+    LUPInvert(tmpM, P, nElem, DRVM_1);
 }
 
-int minorM(int z,int x,int N, double** A,double**C) noexcept
+int minorM(int z, int x, int N, double** A, double** C) noexcept
 {
     int i,h,j,k;
     for(h = 0,i = 0; i < N - 1 ; i++, h++)
@@ -924,7 +940,7 @@ int minorM(int z,int x,int N, double** A,double**C) noexcept
     return 0;
 }
 
-double calculateDistorsio(double coordC, double coordA, double coordB, const QList<double>& distorsioCoef) noexcept
+double calculateDistorsio(double coordC, double coordA, double coordB, const QList <double>& distorsioCoef) noexcept
 {
     return coordC - calculateDistorsioDelta(coordA, coordB, distorsioCoef);
 }
@@ -934,7 +950,7 @@ double calculateDistorsioDelta(double coordA, double coordB, const QList<double>
 
     double delta = distorsioCoef[0] + distorsioCoef[1] * coordA + distorsioCoef[2] * coordB
             +distorsioCoef[3] * pow(coordA, 2) + distorsioCoef[4] * coordA * coordB
-            +distorsioCoef[5] * pow(coordB, 2)+ distorsioCoef[6] * pow( coordA, 3)
+            +distorsioCoef[5] * pow(coordB, 2)+ distorsioCoef[6] * pow(coordA, 3)
             +distorsioCoef[7] * pow(coordA, 2) * coordB + distorsioCoef[8] * coordA * pow(coordB, 2)
             +distorsioCoef[9] * pow(coordB, 3) + distorsioCoef[10] * pow(coordA, 4)
             +distorsioCoef[11] * pow(coordA, 3) * coordB + distorsioCoef[12] * pow(coordB, 2) * pow(coordA, 2)

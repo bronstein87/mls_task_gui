@@ -155,14 +155,134 @@ void MLSTask::readRealData(const QString& filename, bool skipFirstRow, bool reve
     }
 }
 
+
+void MLSTask::readLines(const QString& filename, bool skipFirstRow, Catalog& catalog)
+{
+    lineFrame.clear();
+    QFile file (filename);
+    if (file.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file);
+        QString line;
+        constexpr const quint16 rowLength = 8;
+        if (skipFirstRow)
+        {
+            in.readLineInto(&line);
+        }
+        QString previousAlpha;
+        QString previousAzimut;
+
+        in.readLineInto(&line);
+        QStringList splitted = line.split("\t");
+        previousAzimut = splitted[2];
+        LineData lineData;
+        auto fillLineData = [&catalog, &lineData, this](double alpha, double delta, QStringList splitted)
+        {
+            lineData.x.append((splitted[5].toDouble() - frameX) * pixelSize);
+            lineData.y.append((splitted[6].toDouble() - frameX) * pixelSize);
+            ++lineData.count;
+            for (int i = 0; i < catalog.alpha.size(); i++)
+            {
+                if (qFuzzyCompare(catalog.alpha[i], alpha)
+                        && qFuzzyCompare(catalog.delta[i], delta))
+                {
+                    lineData.vecSt.append(i);
+                }
+            }
+
+        };
+        fillLineData(splitted[3].toDouble(), splitted[4].toDouble(), splitted);
+
+        while (in.readLineInto(&line))
+        {
+            QStringList list = line.split("\t");
+            if (list.size() != rowLength)
+            {
+                throw std::logic_error("Неверная строка в каталоге");
+            }
+            if (previousAzimut != list[2])
+            {
+                lineFrame.append(lineData);
+                lineData.clear();
+                previousAzimut = list[2];
+            }
+            fillLineData(list[3].toDouble(), list[4].toDouble(), list);
+        }
+        lineFrame.append(lineData);
+        file.close();
+    }
+    else
+    {
+        throw std::runtime_error("Не удалось открыть файл " + filename.toStdString());
+    }
+}
+
+
+void MLSTask::readLinesWithCatalog(const QString& filename, bool skipFirstRow, Catalog& catalog)
+{
+    QFile file (filename);
+    if (file.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file);
+        QString line;
+        //constexpr const quint16 rowLength = 8;
+        if (skipFirstRow)
+        {
+            in.readLineInto(&line);
+        }
+        qint32 pos = in.pos();
+        QString previousAlpha;
+        QString previousAzimut;
+
+        in.readLineInto(&line);
+        QStringList splitted = line.split("\t");
+        previousAzimut = splitted[2];
+        in.seek(pos);
+        bool finish = false;
+        double l, m, n;
+        while (!finish)
+        {
+            in.readLineInto(&line);
+            splitted = line.split("\t", QString::SkipEmptyParts);
+            if (!splitted.isEmpty() && previousAzimut == splitted[2])
+            {
+                catalog.alpha.append(splitted[3].toDouble());
+                catalog.delta.append(splitted[4].toDouble());
+                calculateDirectionVector(catalog.alpha.last(), catalog.delta.last(), l, m, n);
+                catalog.L.append(l);
+                catalog.M.append(m);
+                catalog.N.append(n);
+            }
+            else
+            {
+                finish = true;
+            }
+        }
+    }
+    readLines(filename, skipFirstRow, catalog);
+}
+
 void MLSTask::calculateXY(double Mstand[3][3], double collimator[3], double focus, double& X, double& Y)
 {
     double LMN[3];
     LMN[0] = Mstand[0][0] * collimator[0] + Mstand[0][1] * collimator[1] + Mstand[0][2] * collimator[2];
     LMN[1] = Mstand[1][0] * collimator[0] + Mstand[1][1] * collimator[1] + Mstand[1][2] * collimator[2];
     LMN[2] = Mstand[2][0] * collimator[0] + Mstand[2][1] * collimator[1] + Mstand[2][2] * collimator[2];
-    X = -focus * LMN[0] / LMN[2];
-    Y = -focus * LMN[1] / LMN[2];
+    if (!fishEye)
+    {
+        X = -focus * LMN[0] / LMN[2];
+        Y = -focus * LMN[1] / LMN[2];
+        //qDebug() << X << Y << "nofisheye";
+    }
+    else
+    {
+        X = (focus * atan2m(sqrt(pow(LMN[0], 2) + pow(LMN[1], 2)), LMN[2]))
+                / sqrt(pow(LMN[1] / LMN[0], 2) + 1);
+        Y = (focus * atan2m(sqrt(pow(LMN[0], 2) + pow(LMN[1], 2)), LMN[2]))
+                / sqrt(pow(LMN[0] / LMN[1], 2) + 1);
+        //qDebug() << X << Y << "fisheye";
+    }
+
 }
 
 
@@ -387,6 +507,323 @@ void MLSTask::calculateFull(const QBitArray& derivativeFlags, Results& results, 
 
 }
 
+void MLSTask::firstApprox(const Catalog& catalog, const LineData& lineData, OrientAngles& angles)
+{
+    qint32 i ,j, imin, imax, jmin, vmin, vmax;
+    double min, max, dist, min_dist, CA, SA, CX;
+    double cos_al[2], sin_al[2], cos_dlt[2], sin_dlt[2], cos_st, sin_st;
+
+    min = 1000.; max = -1000.;  min_dist = 1000.;
+
+    for (int j = 0; j < lineData.count; j++)
+    {
+        //star with min and max delta
+        i = lineData.vecSt[j];
+        if (catalog.N[i] > max)  {max = catalog.N[i]; imax = j;}
+        if (catalog.N[i] < min)  {min = catalog.N[i]; imin = j;}
+        //nearest for the center
+        dist = sqrtm(lineData.x[j] * lineData.x[j] + lineData.y[j] * lineData.y[j]);
+        if (dist < min_dist) { min_dist = dist; jmin = j; }
+    }
+    if (imax == imin)
+    {
+        imax = lineData.count - 1;
+    }
+
+    //в качестве начального приближения альфа и дельта - параметры ближайшей к центру звезды
+    j = lineData.vecSt[jmin];
+    angles.dl = asinm(catalog.N[j]);
+
+    angles.al = atan2m(catalog.M[j],catalog.L[j]);
+    if (angles.al < 0) angles.al += 2 * M_PI;
+
+    //первое приближение азимута - по двум крайним звездам
+    vmin = lineData.vecSt[imin];
+    vmax = lineData.vecSt[imax];
+    sin_dlt[0] = catalog.N[vmin];
+    sin_dlt[1] = catalog.N[vmax];
+
+    cos_dlt[0] = 1 - sin_dlt[0] * sin_dlt[0]; cos_dlt[0] = sqrtm(cos_dlt[0]);
+    cos_dlt[1] = 1 - sin_dlt[1] * sin_dlt[1]; cos_dlt[1] = sqrtm(cos_dlt[1]);
+
+    sin_al[0] = catalog.M[vmin] / cos_dlt[0];
+    cos_al[0] = catalog.L[vmin] / cos_dlt[0];
+
+    sin_al[1] = catalog.M[vmax] / cos_dlt[1];
+    cos_al[1] = catalog.L[vmax] / cos_dlt[1];
+
+    cos_st = catalog.L[vmin] * catalog.L[vmax]
+            + catalog.M[vmin] * catalog.M[vmax]
+            + catalog.N[vmin] * catalog.N[vmax];
+    sin_st = 1 - cos_st * cos_st; sin_st = sqrtm(sin_st);
+
+    CA = (sin_dlt[0] - sin_dlt[1] * cos_st) / (sin_st * cos_dlt[1]);
+    SA = cos_dlt[0] * (sin_al[0] * cos_al[1] - cos_al[0] * sin_al[1]) / sin_st;
+
+    angles.Az = atan2m(SA, CA);
+    if (angles.Az < 0) angles.Az += 2 * M_PI;
+    SA = lineData.x[imin] - lineData.x[imax]; CA = lineData.y[imin] - lineData.y[imax];
+
+    CX = atan2m(SA,CA); if (CX < 0) CX += 2 * M_PI;
+    angles.Az = CX - angles.Az; if (angles.Az < 0) angles.Az += 2 * M_PI;
+    angles.Az += M_PI;
+}
+
+void MLSTask::calculateOldModelPrivate(const Catalog& catalog, const LineData& lineData, OldErrors errors, double& focus, qint32 numP, bool dist, bool save)
+{
+    focus = 32;
+    int clk = 0;
+    double mxy=1000;
+    double mxy_pr, mx, my;
+    double DFR[maxDer];
+    double **DRV = new double* [maxDer];
+    double **DRVM = new double* [maxParams];
+    double **DRVM_1 = new double* [maxParams];
+    for (int count = 0; count < maxDer; count++)
+    {
+        DRV[count] = new double [maxParams];
+    }
+    for (int j = 0; j < maxParams; j++)
+    {
+        DRVM[j] = new double [maxParams];
+        DRVM_1[j] = new double [maxParams];
+    }
+
+    double DRVH[maxParams], ANGD[maxParams];
+    double CC1, CC2, CC3, CC4, CC5;
+    double cos_al, sin_al, cos_dlt, sin_dlt, cos_Az, sin_Az;
+    OrientAngles orientAngles;
+    firstApprox(catalog, lineData, orientAngles);
+    double Mst[3][3];
+    do
+    {
+        mxy_pr = mxy;
+        mxy = 0.;  mx = 0.; my = 0.;
+        calcTransitionMatrix(orientAngles.al * radToDegrees,
+                             orientAngles.dl * radToDegrees,
+                             orientAngles.Az * radToDegrees,
+                             Mst);
+        cos_al=cos(orientAngles.al);   sin_al=sin(orientAngles.al);
+        cos_dlt=cos(orientAngles.dl);  sin_dlt=sin(orientAngles.dl);
+        cos_Az=cos(orientAngles.Az);   sin_Az=sin(orientAngles.Az);
+
+        for (int j = 0; j < lineData.count; j++)
+        {
+            int i = lineData.vecSt[j];
+            int k = j * 2; // номер уравнения для х
+            int l = k + 1; // номер уравнения для у
+
+            CC1 = Mst[2][0] * catalog.L[i] + Mst[2][1] * catalog.M[i] + Mst[2][2] * catalog.N[i];
+            CC2 = Mst[2][1] * catalog.L[i] - Mst[2][0] * catalog.M[i];
+            CC3 = (catalog.L[i] * cos_al + catalog.M[i] * sin_al) * sin_dlt - catalog.N[i] * cos_dlt;
+            CC4 = -focus * ((Mst[0][0] * catalog.L[i] + Mst[0][1] * catalog.M[i] + Mst[0][2] * catalog.N[i])/CC1);
+            CC5 = -focus * ((Mst[1][0] * catalog.L[i] + Mst[1][1] * catalog.M[i] + Mst[1][2] * catalog.N[i])/CC1);
+
+            DFR[k] = (double)(lineData.x[j] - CC4);
+            DFR[l] = (double)(lineData.y[j] - CC5);
+
+            if (numP == 1)
+            {
+                DRV[k][0] = (double)(CC4 / focus);
+                DRV[l][0] = (double)(CC5 / focus);
+            }
+            else
+            {
+                DRV[k][0] = (double)(CC5);
+                DRV[l][0] = (double)(-CC4);
+                DRV[k][1] = (double)(focus*sin_Az+CC4*(CC3 / CC1));
+                DRV[l][1] = (double)(focus*cos_Az+CC5*(CC3 / CC1));
+                DRV[k][2] = (double)((focus*(Mst[0][1]*catalog.L[i]-Mst[0][0]*catalog.M[i])+CC4*CC2)/CC1);
+                DRV[l][2] = (double)((focus*(Mst[1][1]*catalog.L[i]-Mst[1][0]*catalog.M[i])+CC5*CC2)/CC1);
+            }
+            if (numP > 3)
+            {
+                DRV[k][3]=(double)(CC4 / focus);
+                DRV[l][3]=(double)(CC5 / focus);
+            }
+
+            mxy += DFR[k] * DFR[k] + DFR[l] * DFR[l];
+            mx  += DFR[k] * DFR[k];
+            my  += DFR[l] * DFR[l];
+        }
+
+        mxy = mxy / (double)(2 * lineData.count - numP);    mxy = sqrtm(mxy);
+        mx  = mx / (double)(lineData.count - numP / 2.);    mx  = sqrtm(mx);
+        my  = my / (double)(lineData.count - numP / 2.);    my  = sqrtm(my);
+
+        for (int i = 0; i<numP; i++)
+        {
+            for (int j = 0; j<numP; j++) // произведение обычной и транс. матрицы параметров
+            {
+                DRVM[i][j] = 0.;      //(DRV)^T*DRV
+                for (int k = 0; k < 2 * lineData.count; k++)
+                {
+                    DRVM[i][j] += DRV[k][i] * DRV[k][j];
+                }
+            }
+        }
+
+        //        for (int i = 0; i < numP; i++)
+        //        {
+        //            QString line;
+        //            for (int j = 0; j < numP; j++)
+        //            {
+        //                line.append(QString::number(DRVM[i][j]) + " ");
+        //            }
+        //            qDebug() << line;
+        //        }
+
+        if (numP == 1)
+            DRVM_1[0][0] = 1/DRVM[0][0];
+        else
+            invertMatrix(DRVM, DRVM_1, numP); // вычисление обратной матрицы
+
+
+        for (int i = 0; i < numP; i++) { // умножение транспонированной на вектор расхождений координат
+            DRVH[i] = 0.;             //DRVH=(DRV)^T*DIF
+            for (int k = 0; k < 2 * lineData.count; k++) DRVH[i] += DRV[k][i] * DFR[k];
+        }
+
+        for (int i = 0; i < numP; i++)
+        { // вычисление дельт углов
+            ANGD[i] = 0.;
+            for (int k = 0; k < numP; k++)
+            {
+                ANGD[i] += DRVM_1[i][k] * DRVH[k];
+            }
+        }
+
+        if (numP==1) focus += ANGD[0];
+        else
+        {
+            orientAngles.Az+=ANGD[0];
+            orientAngles.dl+=ANGD[1];
+            orientAngles.al+=ANGD[2];
+        }
+
+        if (numP>3) focus+=ANGD[3];
+        clk++;
+    }
+    while ((fabs(mxy - mxy_pr) > maxError) && (clk < maxIterations));
+
+    orientAngles.dl  = asin(Mst[2][2]);
+    orientAngles.al  = atan2m(Mst[2][1], Mst[2][0]);    if (orientAngles.al < 0)  orientAngles.al += 2 * M_PI;
+    orientAngles.Az  = atan2m(Mst[0][2], Mst[1][2]);    if (orientAngles.Az < 0) orientAngles.Az += 2 * M_PI;
+
+    errors.dAl  = sqrtm(DRVM_1[2][2]) * mxy * radToSec * cos(orientAngles.dl);
+    errors.dDlt = sqrtm(DRVM_1[1][1]) * mxy * radToSec;
+    errors.dAz  = sqrtm(DRVM_1[0][0]) * mxy * radToSec;
+
+    if (numP > 3)
+    {
+        errors.dFoc = sqrtm(DRVM_1[3][3]) * mxy * 1000.;
+    }
+    else errors.dFoc = 0.;
+    qDebug() <<"Orient:" << orientAngles.al * radToDegrees << orientAngles.dl * radToDegrees << orientAngles.Az * radToDegrees;
+    qDebug() <<"Error:" << errors.dFoc <<  errors.dAl  << errors.dDlt <<  errors.dAz <<  mxy * 1000 << mx * 1000  << my * 1000 << "\n";
+
+    if (dist)
+    {
+        for (int i = 0; i < lineData.count; i++)
+        {
+            int deltaStep = i * 2;
+            distData.x.append(lineData.x[i]);
+            distData.y.append(lineData.y[i]);
+            distData.dx.append(DFR[deltaStep]);
+            distData.dy.append(DFR[deltaStep + 1]);
+        }
+    }
+    if (save)
+    {
+        QFile experimentalData("experimental_data.txt");
+        if (experimentalData.open(QIODevice::Append))
+        {
+            QTextStream out(&experimentalData);
+            if (experimentalData.size() == 0)
+            {
+                out << QString("foc\talpha\tdelta\tazimut\terAlpha\terDelta\terAzimut\tmx\tmy\tmxy\tmodel\n");
+            }
+            out << QString("%1\t%2\t%3\t%4\t%5\t%6\t%7\t%8\t%9\t%10\t%11\n")
+                   .arg(focus)
+                   .arg(orientAngles.al * radToDegrees).arg(orientAngles.dl * radToDegrees).arg(orientAngles.Az * radToDegrees)
+                   .arg(errors.dAl).arg(errors.dDlt).arg(errors.dAz)
+                   .arg(mx * 1000).arg(my * 1000).arg(mxy * 1000)
+                   .arg(modelName);
+        }
+
+    }
+    for (int count = 0; count < maxDer; count++)
+    {
+        delete[] DRV[count];
+    }
+    delete[] DRV;
+    for (int count = 0; count < maxParams; count++)
+    {
+        delete[] DRVM[count];
+        delete[] DRVM_1[count];
+    }
+    delete [] DRVM;
+    delete [] DRVM_1;
+}
+
+void MLSTask::calculateOldModel(const Catalog& catalog, OldErrors errors, double focus, qint32 numP)
+{
+    double initFocus = focus;
+    QVector <double> focuses;
+    for (const auto& i : lineFrame)
+    {
+        calculateOldModelPrivate(catalog, i, errors, focus, numP, false, false);
+        focuses.append(focus);
+        focus = initFocus;
+    }
+    focus = calculateMean(focuses.begin(), focuses.end(), 0.0);
+    for (const auto& i : lineFrame)
+    {
+        calculateOldModelPrivate(catalog, i, errors, focus, numP - 1, true, false);
+    }
+    findDistorsio(3, true);
+    for (int i = 0; i < lineFrame.size(); i++)
+    {
+        for (int j = 0; j < lineFrame[i].count; j++)
+        {
+            lineFrame[i].x[j] = calculateDistorsio(lineFrame[i].x[j], lineFrame[i].x[j], lineFrame[i].y[j], xDistV);
+            lineFrame[i].y[j] = calculateDistorsio(lineFrame[i].y[j], lineFrame[i].x[j], lineFrame[i].y[j], yDistV);
+        }
+    }
+    for (const auto& i : lineFrame)
+    {
+        calculateOldModelPrivate(catalog, i, errors, focus, numP - 1, false, true);
+    }
+    saveDistorsio();
+}
+
+
+void MLSTask::readStandCatalog(const QString& filename, Catalog& catalog)
+{
+    QFile file (filename);
+    if(file.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&file);
+        QString line;
+        constexpr const quint16 rowLength = 5;
+        double l, m, n;
+        while(in.readLineInto(&line))
+        {
+            QStringList list = line.split("\t");
+            if (list.size() != rowLength)
+                throw std::logic_error("Неверная строка в каталоге");
+            catalog.alpha.append(list[3].toDouble());
+            catalog.delta.append(list[4].toDouble());
+            calculateDirectionVector(catalog.alpha.last(), catalog.delta.last(), l, m, n);
+            catalog.L.append(l);
+            catalog.M.append(m);
+            catalog.N.append(n);
+        }
+        catalog.countStars = catalog.alpha.size();
+        file.close();
+    }
+}
+
 void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& errors)
 {
     constexpr const double angleMainFirst = 0.353553;
@@ -430,6 +867,7 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
     qint32 nCft = 10;
     //double distDelta = 0.0001;
     QVector <double > distDelta {1.0e-12, 1.0e-10, 1.0e-10, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6};
+    //попробовать сделать 20 коэф (10 - х, 10 - y) и попробовать уровняться со всеми возможными комбинациями коэффициентов
     do
     {
         mxy_pr = mxy;
@@ -465,16 +903,12 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
                                 double nAngle = calculateAngle(line[i].points[j], line[i].points[k], focus, distXDrv, distY);
                                 DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
                                 mxy += DFR[counter] * DFR[counter];
-                                // ++counter;
-                               // qDebug() << (nAngle - angle) / distDelta[l];
                                 distYDrv = distY;
                                 distYDrv[l] += distDelta[l];
                                 DFR[counter] = angle;
                                 nAngle = calculateAngle(line[i].points[j], line[i].points[k], focus, distX, distYDrv);
                                 DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
                                 mxy += DFR[counter] * DFR[counter];
-                                // ++counter;
-                               // qDebug() << (nAngle - angle) / distDelta[l];
                             }
                             ++counter;
                         }
@@ -508,7 +942,6 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
                             double nAngle = abs(calculateAngle(line[i].points[0], line[j].points[0], focus, distXDrv, distY));
                             DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
                             mxy += DFR[counter] * DFR[counter];
-                            // ++counter;
 
                             distYDrv = distY;
                             distYDrv[l] += distDelta[l];
@@ -516,7 +949,6 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
                             nAngle = calculateAngle(line[i].points[0], line[j].points[0], focus, distX, distYDrv);
                             DRV[counter][numP++] = (nAngle - angle) / distDelta[l];
                             mxy += DFR[counter] * DFR[counter];
-                            //++counter;
                         }
                         ++counter;
                     }
@@ -529,15 +961,15 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
         }
         else
         {
-//            for (int i = 0; i < counter; i++)
-//            {
-//                QString str;
-//                for (int j = 0; j < numP; j++)
-//                {
-//                    str.append(QString::number(DRV[i][j]) + " ");
-//                }
-//                qDebug() << str;
-//            }
+            //                        for (int i = 0; i < counter; i++)
+            //                        {
+            //                            QString str;
+            //                            for (int j = 0; j < numP; j++)
+            //                            {
+            //                                str.append(QString::number(DRV[i][j]) + " ");
+            //                            }
+            //                            qDebug() << str;
+            //                        }
         }
 
         mxy = mxy / (double)(counter - numP);  mxy = sqrtm(mxy);
@@ -562,7 +994,7 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
         }
         else
         {
-            Matrix_1MM(DRVM, DRVM_1, numP); // вычисление обратной матрицы
+            invertMatrix(DRVM, DRVM_1, numP); // вычисление обратной матрицы
         }
         for (int i = 0; i < numP; i++)
         { // умножение транспонированной на вектор расхождений координат
@@ -617,7 +1049,7 @@ void MLSTask::calculateTriangle(bool distorsio, Results& results, ResultErrors& 
         throw std::runtime_error("Грубые измерения.");
     }
 
-    for (int count = 0; count < counter; count++)
+    for (int count = 0; count < maxDer; count++)
     {
         delete[] DRV[count];
     }
@@ -703,11 +1135,6 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
 
             DFR[k] = (double)(Xst[j] - X);
             DFR[l] = (double)(Yst[j] - Y);
-            //            if (DFR[k] > 0.5 || DFR[l] > 0.5)
-            //            {
-            //                qDebug() << DFR[k] << DFR[l] << j;
-            //            }
-
 
             if (derivativeFlags.at(DERIVATIVES::LAMBDA_OY))
             {
@@ -830,7 +1257,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
         }
         else
         {
-            Matrix_1MM(DRVM, DRVM_1, numP); // вычисление обратной матрицы
+            invertMatrix(DRVM, DRVM_1, numP); // вычисление обратной матрицы
         }
         for (int i = 0; i < numP; i++)
         { // умножение транспонированной на вектор расхождений координат
@@ -1012,7 +1439,7 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
         distData.dy.append(DFR[deltaStep + 1]);
     }
 
-    for (int count = 0; count < Nst; count++)
+    for (int count = 0; count < maxDer; count++)
     {
         delete[] DRV[count];
     }
@@ -1027,15 +1454,22 @@ void MLSTask::calculatePrivate(const QBitArray& derivativeFlags, Results& result
 }
 
 
-void MLSTask::findDistorsio(int nPow)
+void MLSTask::findDistorsio(int nPow, bool clear)
 {
     findDistCft(nPow, distData.x, distData.y, distData.dx, distData.dy);
+    if (clear)
+    {
+        distData.x.clear();
+        distData.y.clear();
+        distData.dx.clear();
+        distData.dy.clear();
+    }
 }
 
 
 void MLSTask::saveDistorsio()
 {
-    QFile file("dist.txt");
+    QFile file(QString("dist%1.txt").arg(modelName));
     if (file.open(QIODevice::WriteOnly))
     {
         QTextStream out(&file);
@@ -1069,24 +1503,30 @@ void MLSTask::includeDistorsio()
 
     for (int i = 0; i < frame.size(); i++)
     {
-        frame[i].setX(calculateDistorsio(frame[i].x(), frame[i].x(), frame[i].y(), xDistV));
-        frame[i].setY(calculateDistorsio(frame[i].y(), frame[i].x(), frame[i].y(), yDistV));
+        auto tmpFrame = frame[i];
+        frame[i].setX(calculateDistorsio(tmpFrame.x(), tmpFrame.x(), tmpFrame.y(), xDistV));
+        frame[i].setY(calculateDistorsio(tmpFrame.y(), tmpFrame.x(), tmpFrame.y(), yDistV));
     }
 }
 
-QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, double focus)
+QString MLSTask::printTestTable(const QString& filename, bool dist, double focus)
 {
     double frameXF = frameX * 2;
     double frameYF = frameY * 2;
     QVector <QPointF> points {
-        QPointF(0,0),
-                QPointF(frameXF,0),
+                QPointF(0, 0),
+                QPointF(frameXF, 0),
                 QPointF(frameXF, frameYF),
                 QPointF(0, frameYF),
-                QPointF(frameXF * (1./2),frameYF * (1./3)),
-                QPointF(frameXF * (2./3),frameYF * (1./2)),
-                QPointF(frameXF * (1./2),frameYF * (2./3)),
-                QPointF(frameXF * (1./3),frameYF * (1./2))};
+                QPointF(0, frameYF / 2),
+                QPointF(frameXF, frameYF / 2),
+                QPointF(frameXF / 2, 0),
+                QPointF(frameXF / 2, frameYF)
+                /*,
+                        QPointF(frameXF * (1./2), frameYF * (1./3)),
+                        QPointF(frameXF * (2./3), frameYF * (1./2)),
+                        QPointF(frameXF * (1./2), frameYF * (2./3)),
+                        QPointF(frameXF * (1./3), frameYF * (1./2))*/};
 
     for(int i = 0; i < points.size(); i++)
     {
@@ -1097,8 +1537,9 @@ QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, do
     {
         for (int i = 0; i < points.size(); i++)
         {
-            points[i].setX(calculateDistorsio(points[i].x(), points[i].x(), points[i].y(), xDistV));
-            points[i].setY(calculateDistorsio(points[i].y(), points[i].x(), points[i].y(), yDistV));
+            QPointF tmpPoint = points[i];
+            points[i].setX(calculateDistorsio(tmpPoint.x(), tmpPoint.x(), tmpPoint.y(), xDistV));
+            points[i].setY(calculateDistorsio(tmpPoint.y(), tmpPoint.x(), tmpPoint.y(), yDistV));
         }
     }
 
@@ -1121,8 +1562,6 @@ QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, do
     }
 
     QString line;
-    QString retLine;
-    QVector <QString> retLineVec;
     for (int i = 0; i < points.size(); i++)
     {
         line.clear();
@@ -1133,13 +1572,18 @@ QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, do
                          .arg(g.getGradus())
                          .arg(g.getMinutes())
                          .arg(g.getSeconds()));
-            retLine.append(QString::number(m[i][j], 'f', 7) + "  ");
-
         }
-        retLineVec.append(retLine);
-        retLine.clear();
     }
-
+    QString retLine;
+    retLine.append("Диагональ сверху-вниз: " + QString::number(m[0][2]) + "\n");
+    retLine.append("Диагональ снизу-вверх: " + QString::number(m[1][3]) + "\n");
+    retLine.append("Левая сторона: " + QString::number(m[0][1]) + "\n");
+    retLine.append("Правая сторона: " + QString::number(m[2][3]) + "\n");
+    retLine.append("Верхняя сторона: " + QString::number(m[0][3]) + "\n");
+    retLine.append("Нижняя сторона: " + QString::number(m[2][1]) + "\n");
+    retLine.append("Нижняя сторона: " + QString::number(m[2][1]) + "\n");
+    retLine.append("Центр сверху-вниз: " + QString::number(m[4][5]) + "\n");
+    retLine.append("Центр слева-направо: " + QString::number(m[6][7]) + "\n");
     QFile f(filename);
     if (f.open(QIODevice::WriteOnly))
     {
@@ -1158,7 +1602,7 @@ QVector <QString> MLSTask::printTestTable(const QString& filename, bool dist, do
             out << "\n";
         }
     }
-    return retLineVec;
+    return retLine;
 }
 
 ShiftData MLSTask::getShiftData() const
@@ -1184,35 +1628,25 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
             y_5, x_6, y_6, x_7, y_7, x_8, y_8, x_9, y_9;
     int Ncft;
 
-    //    QFile coords("coodinates" + number + ".txt");
-    //    if (coords.open(QIODevice::WriteOnly))
-    //    {
-    //        QTextStream out(&coords);
-    //        for (int i = 0; i < x.size(); i++)
-    //        {
-    //            out << QString("%1  %2  %3  %4\n").arg(x[i]).arg(y[i]).arg(dx[i]).arg(dy[i]);
-    //        }
-    //    }
-
     switch (Npow)
     {
-        case 2: Ncft=6;  break;
-        case 3: Ncft=10; break;
-        case 4: Ncft=15; break;
-        case 5: Ncft=21; break;
-        case 6: Ncft=28; break;
-        case 7: Ncft=36; break;
-        case 8: Ncft=45; break;
-        case 9: Ncft=55; break;
-        default: Npow=3; Ncft=10; break;
+        case 2: Ncft = 6;  break;
+        case 3: Ncft = 10; break;
+        case 4: Ncft = 15; break;
+        case 5: Ncft = 21; break;
+        case 6: Ncft = 28; break;
+        case 7: Ncft = 36; break;
+        case 8: Ncft = 45; break;
+        case 9: Ncft = 55; break;
+        default: Npow = 3; Ncft = 10; break;
     }
 
 
-    for (int i = 0;i < maxParams; i++)
+    for (int i = 0; i < maxParams; i++)
     {
-        CX[i]=0.; CY[i]=0.;
-        for (int j=0;j<Ncft;j++)
-            B[i][j]=0.;
+        CX[i] = 0.; CY[i] = 0.;
+        for (int j = 0; j < Ncft; j++)
+            B[i][j] = 0.;
     }
 
     for (int i = 0; i < x.size(); i++)
@@ -1228,89 +1662,89 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
         Mcft_i[5] = y_2;
         if (Npow>=3)
         {
-            x_3=x_2*x[i];
-            y_3=y_2*y[i];
+            x_3 = x_2 * x[i];
+            y_3 = y_2 * y[i];
 
-            Mcft_i[6]=x_3;
-            Mcft_i[7]=x_2*y[i];
-            Mcft_i[8]=x[i]*y_2;
-            Mcft_i[9]=y_3;
-            if (Npow>=4)
+            Mcft_i[6] = x_3;
+            Mcft_i[7] = x_2 * y[i];
+            Mcft_i[8] = x[i] * y_2;
+            Mcft_i[9] = y_3;
+            if (Npow >= 4)
             {
-                x_4=x_3*x[i];
-                y_4=y_3*y[i];
+                x_4 = x_3 * x[i];
+                y_4 = y_3 * y[i];
 
-                Mcft_i[10]=x_4;
-                Mcft_i[11]=x_3*y[i];
-                Mcft_i[12]=x_2*y_2;
-                Mcft_i[13]=x[i]*y_3;
-                Mcft_i[14]=y_4;
+                Mcft_i[10] = x_4;
+                Mcft_i[11] = x_3 * y[i];
+                Mcft_i[12] = x_2 * y_2;
+                Mcft_i[13] = x[i] * y_3;
+                Mcft_i[14] = y_4;
 
-                if (Npow>=5)
+                if (Npow >= 5)
                 {
-                    x_5=x_4*x[i];
-                    y_5=y_4*y[i];
+                    x_5 = x_4 * x[i];
+                    y_5 = y_4 * y[i];
 
-                    Mcft_i[15]=x_5;
-                    Mcft_i[16]=x_4*y[i];
-                    Mcft_i[17]=x_3*y_2;
-                    Mcft_i[18]=x_2*y_3;
-                    Mcft_i[19]=x[i]*y_4;
-                    Mcft_i[20]=y_5;
-                    if (Npow>=6)
+                    Mcft_i[15] = x_5;
+                    Mcft_i[16] = x_4 * y[i];
+                    Mcft_i[17] = x_3 * y_2;
+                    Mcft_i[18] = x_2 * y_3;
+                    Mcft_i[19] = x[i] * y_4;
+                    Mcft_i[20] = y_5;
+                    if (Npow >= 6)
                     {
-                        x_6=x_5*x[i];
-                        y_6=y_5*y[i];
+                        x_6 = x_5 * x[i];
+                        y_6 = y_5 * y[i];
 
-                        Mcft_i[21]=x_6;
-                        Mcft_i[22]=x_5*y[i];
-                        Mcft_i[23]=x_4*y_2;
-                        Mcft_i[24]=x_3*y_3;
-                        Mcft_i[25]=x_2*y_4;
-                        Mcft_i[26]=x[i]*y_5;
-                        Mcft_i[27]=y_6;
-                        if (Npow>=7)
+                        Mcft_i[21] = x_6;
+                        Mcft_i[22] = x_5 * y[i];
+                        Mcft_i[23] = x_4 * y_2;
+                        Mcft_i[24] = x_3 * y_3;
+                        Mcft_i[25] = x_2 * y_4;
+                        Mcft_i[26] = x[i] * y_5;
+                        Mcft_i[27] = y_6;
+                        if (Npow >= 7)
                         {
-                            x_7=x_6*x[i];
-                            y_7=y_6*y[i];
+                            x_7 = x_6 * x[i];
+                            y_7 = y_6 * y[i];
 
-                            Mcft_i[28]=x_7;
-                            Mcft_i[29]=x_6*y[i];
-                            Mcft_i[30]=x_5*y_2;
-                            Mcft_i[31]=x_4*y_3;
-                            Mcft_i[32]=x_3*y_4;
-                            Mcft_i[33]=x_2*y_5;
-                            Mcft_i[34]=x[i]*y_6;
-                            Mcft_i[35]=y_7;
-                            if (Npow>=8)
+                            Mcft_i[28] = x_7;
+                            Mcft_i[29] = x_6 * y[i];
+                            Mcft_i[30] = x_5 * y_2;
+                            Mcft_i[31] = x_4 * y_3;
+                            Mcft_i[32] = x_3 * y_4;
+                            Mcft_i[33] = x_2 * y_5;
+                            Mcft_i[34] = x[i] * y_6;
+                            Mcft_i[35] = y_7;
+                            if (Npow >= 8)
                             {
                                 x_8=x_7 * x[i];
                                 y_8=y_7 * y[i];
 
-                                Mcft_i[36]=x_8;
-                                Mcft_i[37]=x_7 * y[i];
-                                Mcft_i[38]=x_6*y_2;
-                                Mcft_i[39]=x_5*y_3;
-                                Mcft_i[40]=x_4*y_4;
-                                Mcft_i[41]=x_3*y_5;
-                                Mcft_i[42]=x_2*y_6;
-                                Mcft_i[43]=x[i]*y_7;
-                                Mcft_i[44]=y_8;
+                                Mcft_i[36] = x_8;
+                                Mcft_i[37] = x_7 * y[i];
+                                Mcft_i[38] = x_6 * y_2;
+                                Mcft_i[39] = x_5 * y_3;
+                                Mcft_i[40] = x_4 * y_4;
+                                Mcft_i[41] = x_3 * y_5;
+                                Mcft_i[42] = x_2 * y_6;
+                                Mcft_i[43] = x[i] * y_7;
+                                Mcft_i[44] = y_8;
                                 if (Npow >= 9)
                                 {
-                                    x_9=x_8*x[i];
-                                    y_9=y_8*y[i];
+                                    x_9 = x_8 * x[i];
+                                    y_9 = y_8 * y[i];
 
-                                    Mcft_i[45]=x_9;
-                                    Mcft_i[46]=x_8*y[i];
-                                    Mcft_i[47]=x_7*y_2;
-                                    Mcft_i[48]=x_6*y_3;
-                                    Mcft_i[49]=x_5*y_4;
-                                    Mcft_i[50]=x_4*y_5;
-                                    Mcft_i[51]=x_3*y_6;
-                                    Mcft_i[52]=x_2*y_7;
-                                    Mcft_i[53]=x[i]*y_8;
-                                    Mcft_i[54]=y_9;
+                                    Mcft_i[45] = x_9;
+                                    Mcft_i[46] = x_8 * y[i];
+                                    Mcft_i[47] = x_7 * y_2;
+                                    Mcft_i[48] = x_6 * y_3;
+                                    Mcft_i[49] = x_5 * y_4;
+                                    Mcft_i[50] = x_4 * y_5;
+                                    Mcft_i[51] = x_3 * y_6;
+                                    Mcft_i[52] = x_2 * y_7;
+                                    Mcft_i[53] = x[i] * y_8;
+                                    Mcft_i[54] = y_9;
                                 }
                             }
                         }
@@ -1318,11 +1752,11 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
                 }
             }
         }
-        for (int k = 0;k < Ncft; k++)
+        for (int k = 0; k < Ncft; k++)
         {
             CX[k] += Mcft_i[k] * dx[i];
             CY[k] += Mcft_i[k] * dy[i];
-            for (int j = 0;j < Ncft; j++)
+            for (int j = 0; j < Ncft; j++)
                 B[k][j] += Mcft_i[k] * Mcft_i[j];
         }
 
@@ -1335,9 +1769,9 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
         AX[i] = 0.; AY[i] = 0;
     }
 
-    for (int i = 0;i < Ncft; i++)
+    for (int i = 0; i < Ncft; i++)
     {
-        AX[i]=0.; AY[i]=0.;
+        AX[i] = 0.; AY[i] = 0.;
         for (int j = 0;j < Ncft; j++)
         {
             AX[i] += B_1[i][j] * CX[j];     // (A^T*A)^(-1)*A^T*dx
@@ -1358,26 +1792,13 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
         yDistV[i] = AY[i];
     }
 
-
-    //    QVector <double> mean_x;
-    //    QVector <double> mean_y;
-    //    QFile file("dist" + number + ".txt");
-    //    if (file.open(QIODevice::WriteOnly))
-    //    {
-    //        QTextStream out(&file);
-    //        for (int i = 0; i < Ncft; i++)
-    //        {
-    //            out << QString("%1 %2").arg(AX[i], 0, 'f', 15).arg(AY[i], 0, 'f', 15) << "\n";
-    //        }
-    //    }
-
     distData.dxDiff.clear();
     distData.dyDiff.clear();
     for (int i = 0; i < x.size(); i++)
     {
 
-        x_2=x[i]*x[i];
-        y_2=y[i]*y[i];
+        x_2 = x[i]*x[i];
+        y_2= y[i]*y[i];
         x_3=x_2*x[i];
         y_3=y_2*y[i];
         x_4=x_3*x[i];
@@ -1416,54 +1837,50 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
         double dy_new = dy[i] - YP;
         distData.dxDiff.append(dx_new);
         distData.dyDiff.append(dy_new);
-        //        qDebug() << dx_new << dy_new;
-        // mean_x.append(fabs(dx_new));
-        // mean_y.append(fabs(dy_new));
-
     }
 }
 
 
-int MLSTask::gaussObr(int cntStar,double mass[55][55],double mObr[55][55])
+int MLSTask::gaussObr(int cntStar, double mass[55][55], double mObr[55][55])
 {
     int i,j,k;
     double a,b;
     double sum;
 
-    for(i=0;i<cntStar;i++)
+    for (i = 0;i < cntStar; i++)
     {
-        for(j=0;j<cntStar;j++)
-            mObr[i][j]=0;
-        mObr[i][i]=1;
+        for(j = 0;j < cntStar; j++)
+            mObr[i][j] = 0;
+        mObr[i][i] = 1;
     }
 
-    for(i=0;i<cntStar;i++)
+    for (i = 0;i < cntStar; i++)
     {
-        a=mass[i][i];
-        if (fabs(a)<1e-38) return 0;
-        for(j=i+1;j<cntStar;j++)
+        a = mass[i][i];
+        if (fabs(a) < 1e-38) return 0;
+        for (j= i+1; j < cntStar; j++)
         {
             b=mass[j][i];
-            for(k=0;k<cntStar;k++)
+            for (k = 0; k < cntStar; k++)
             {
-                mass[j][k]=mass[j][k]-mass[i][k]*b/a;
-                mObr[j][k]=mObr[j][k]-mObr[i][k]*b/a;
+                mass[j][k] = mass[j][k] - mass[i][k] * b / a;
+                mObr[j][k] = mObr[j][k] - mObr[i][k] * b / a;
             }
         }
     }
 
-    for(i=0;i<cntStar;i++)
+    for (i = 0; i < cntStar; i++)
     {
-        for(j=cntStar-1;j>=0;j--)
+        for (j = cntStar - 1; j >= 0; j--)
         {
             sum=0;
-            for(k=cntStar-1;k>j;k--)
-                sum += mass[j][k]*mObr[k][i];
-            if(mass[j][j] == 0)
+            for (k = cntStar - 1; k > j; k--)
+                sum += mass[j][k] * mObr[k][i];
+            if (qFuzzyCompare(mass[j][j], 0))
             {
                 return 0;
             }
-            mObr[j][i] = (mObr[j][i]-sum)/mass[j][j];
+            mObr[j][i] = (mObr[j][i] - sum) / mass[j][j];
         }
     }
     return 1;
@@ -1484,6 +1901,5 @@ double MLSTask::calculateAngle(const QPointF& fPoint, const QPointF& sPoint, dou
     sPointDist.setY(sPointDist.y() / sLength);
     double normFocuss = -focus / sLength;
     double cos = calculateScalarProduct(fPointDist.x(), sPointDist.x(), fPointDist.y(), sPointDist.y(), normFocusf, normFocuss);
-    //qDebug() << acosm(cos) * radToDegrees;
     return acosm(cos) * radToDegrees;
 }

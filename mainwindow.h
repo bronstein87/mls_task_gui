@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <customplot/cxyplotter.h>
 #include <QMessageBox>
+#include <QShortcut>
 
 struct PointDiff
 {
@@ -33,11 +34,6 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_pushButton_clicked();
-
-    void on_pushButton_2_clicked();
-
-    void on_pushButton_3_clicked();
 
     void on_chooseRawFilesPushButton_clicked();
 
@@ -46,6 +42,14 @@ private slots:
     void on_removeToolButton_clicked();
 
     void on_startToolButton_clicked();
+
+    void on_chooseCatData_clicked();
+
+    void on_startCalcPushButton_clicked();
+
+    void on_clearTextEditPushButton_clicked();
+
+    void on_chooseModelFilePushButton_clicked();
 
 private:
 
@@ -61,7 +65,7 @@ private:
 
     void saveErrors(ResultErrors& err);
 
-    void printAngles (const QString& before, const QString& after);
+    void printAngles(const QString& before, const QString& after);
 
     void saveResults(Results& res);
 
@@ -78,7 +82,8 @@ private:
     QSettings* settings = nullptr;
     bool editStarted = false;
     QStringList editingList;
-    qint32 selectedIndex = 0;
+    qint32 selectedIndex = -1;
+    QShortcut deleteSc;
 };
 
 #endif // MAINWINDOW_H

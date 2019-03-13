@@ -121,7 +121,7 @@ void CXYPlotter::addDateTimeGraph(const QVector<double>& firstDataVec, const QVe
     makeMainPlotOperations(secondDataVec, firstDataVec, sorted, syncAfter);
 }
 
-void CXYPlotter::updateGraph(const QVector<double>& firstDataVec , const QVector<double>& secondDataVec, int number, bool sorted)
+void CXYPlotter::updateGraph(const QVector<double>& firstDataVec, const QVector<double>& secondDataVec, int number, bool sorted)
 {
     if (!plotIsSetted())
         return;

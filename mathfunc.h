@@ -106,6 +106,8 @@ void quatToEkvA(const double Quat[4], double EkvA[3], AxisType axis = AxisType::
 
 double acosm(double xf) noexcept;
 
+double asinm(double x) noexcept;
+
 void multiplyMatrix(const double Matr1[3][3],const double Matr2[3][3], double Matr[3][3]) noexcept;
 
 void getAngularDisplacementFromOrientMatr(const double mOrnt_pr[3][3],const double mOrnt[3][3], double Wop [3]) noexcept;
@@ -146,9 +148,11 @@ int LUPDecompose(double** A, int N, double Tol, int* P) noexcept;
 
 double LUPDeterminant(double* *A, int* P, int N) noexcept;
 
-double getDet(int nElem, double** DRVM) noexcept;
+void LUPInvert(double** A, int* P, int N, double** IA) noexcept;
 
-void Matrix_1MM(double** DRVM, double** DRVM_1, int nElem) noexcept;
+double getDet(int nElem, double** DRVM);
+
+void invertMatrix(double** DRVM, double** DRVM_1, int nElem);
 
 int minorM(int z,int x,int N, double** A,double** C) noexcept;
 
