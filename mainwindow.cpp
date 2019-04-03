@@ -11,7 +11,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(&deleteSc, &QShortcut::activated, this, &MainWindow::on_removeToolButton_clicked);
     settings = new QSettings(QDir::currentPath() + "/" + "config.ini", QSettings::IniFormat, this);
     loadSettings();
-    ui->powComboBox->addItems(QStringList {"2", "3", "5"});
+    ui->powComboBox->addItems(QStringList {"2", "3", "5", "6", "7", "8", "9"});
     ui->formatTypeComboBox->addItems(QStringList{"Формат №1", "Формат №2(Никитин)"});
     plotter.reset (new CXYPlotter(ui->plot));
     plotter->setGraphName("Рассогласования");

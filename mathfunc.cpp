@@ -949,22 +949,33 @@ double calculateDistorsioDelta(double coordA, double coordB, const QList<double>
 {
 
     double delta = distorsioCoef[0] + distorsioCoef[1] * coordA + distorsioCoef[2] * coordB
-            +distorsioCoef[3] * pow(coordA, 2) + distorsioCoef[4] * coordA * coordB
-            +distorsioCoef[5] * pow(coordB, 2)+ distorsioCoef[6] * pow(coordA, 3)
-            +distorsioCoef[7] * pow(coordA, 2) * coordB + distorsioCoef[8] * coordA * pow(coordB, 2)
-            +distorsioCoef[9] * pow(coordB, 3) + distorsioCoef[10] * pow(coordA, 4)
-            +distorsioCoef[11] * pow(coordA, 3) * coordB + distorsioCoef[12] * pow(coordB, 2) * pow(coordA, 2)
-            +distorsioCoef[13] * coordA * pow(coordB, 3) + distorsioCoef[14] * pow(coordB, 4)
-            +distorsioCoef[15] * pow(coordA, 5) + distorsioCoef[16] * pow(coordA, 4) * coordB
-            +distorsioCoef[17] * pow(coordA, 3) * pow(coordB, 2)
-            +distorsioCoef[18] * pow(coordA, 2) * pow(coordB, 3)
-            +distorsioCoef[19] * coordA * pow(coordB,4)
-            +distorsioCoef[20] * pow(coordB, 5);
-    // +
-        //            +distorsioCoef[21]*x_6+distorsioCoef[22]*x_5*y[i]+distorsioCoef[23]*x_4*y_2+distorsioCoef[24]*x_3*y_3+distorsioCoef[25]*x_2*y_4+distorsioCoef[26]*x[i]*y_5+distorsioCoef[27]*y_6
-        //            +distorsioCoef[28]*x_7+distorsioCoef[29]*x_6*y[i]+distorsioCoef[30]*x_5*y_2+distorsioCoef[31]*x_4*y_3+distorsioCoef[32]*x_3*y_4+distorsioCoef[33]*x_2*y_5+distorsioCoef[34]*x[i]*y_6+distorsioCoef[35]*y_7
-        //            +distorsioCoef[36]*x_8+distorsioCoef[37]*x_7*y[i]+distorsioCoef[38]*x_6*y_2+distorsioCoef[39]*x_5*y_3+distorsioCoef[40]*x_4*y_4+distorsioCoef[41]*x_3*y_5+distorsioCoef[42]*x_2*y_6+distorsioCoef[43]*x[i]*y_7+distorsioCoef[44]*y_8
-        //            +distorsioCoef[45]*x_9+distorsioCoef[46]*x_8*y[i]+distorsioCoef[47]*x_7*y_2+distorsioCoef[48]*x_6*y_3+distorsioCoef[49]*x_5*y_4+distorsioCoef[50]*x_4*y_5+distorsioCoef[51]*x_3*y_6+distorsioCoef[52]*x_2*y_7+distorsioCoef[53]*x[i]*y_8+distorsioCoef[54]*y_9;;
+            + distorsioCoef[3] * pow(coordA, 2) + distorsioCoef[4] * coordA * coordB
+            + distorsioCoef[5] * pow(coordB, 2) + distorsioCoef[6] * pow(coordA, 3)
+            + distorsioCoef[7] * pow(coordA, 2) * coordB + distorsioCoef[8] * coordA * pow(coordB, 2)
+            + distorsioCoef[9] * pow(coordB, 3) + distorsioCoef[10] * pow(coordA, 4)
+            + distorsioCoef[11] * pow(coordA, 3) * coordB + distorsioCoef[12] * pow(coordB, 2) * pow(coordA, 2)
+            + distorsioCoef[13] * coordA * pow(coordB, 3) + distorsioCoef[14] * pow(coordB, 4)
+            + distorsioCoef[15] * pow(coordA, 5) + distorsioCoef[16] * pow(coordA, 4) * coordB
+            + distorsioCoef[17] * pow(coordA, 3) * pow(coordB, 2)
+            + distorsioCoef[18] * pow(coordA, 2) * pow(coordB, 3)
+            + distorsioCoef[19] * coordA * pow(coordB, 4)
+            + distorsioCoef[20] * pow(coordB, 5)
+            + distorsioCoef[21] * pow(coordA, 6) + distorsioCoef[22] * pow(coordA, 5) * coordB + distorsioCoef[23] * pow(coordA, 4) * pow(coordB, 2)
+            + distorsioCoef[24] * pow(coordA, 3) * pow(coordB, 3) + distorsioCoef[25] * pow(coordA, 2) * pow(coordB, 4)
+            + distorsioCoef[26] * coordA * pow(coordB, 5) + distorsioCoef[27] * pow(coordB, 6)
+            + distorsioCoef[28] * pow(coordA, 7) + distorsioCoef[29] * pow(coordA, 6) * coordB
+            + distorsioCoef[30] * pow(coordA, 5) * pow(coordB, 2) + distorsioCoef[31] * pow(coordA, 4) * pow(coordB, 3)
+            + distorsioCoef[32] * pow(coordA, 3) * pow(coordB, 4) + distorsioCoef[33] * pow(coordA, 2) * pow(coordB, 5)
+            + distorsioCoef[34] * coordA * pow(coordB, 6) + distorsioCoef[35] * pow(coordB, 7)
+            + distorsioCoef[36] * pow(coordA, 8) + distorsioCoef[37] * pow(coordA, 7) * coordB
+            + distorsioCoef[38] * pow(coordA, 6) * pow(coordB, 2) + distorsioCoef[39] * pow(coordA, 5) * pow(coordB, 3)
+            + distorsioCoef[40] * pow(coordA, 4) * pow(coordB, 4) + distorsioCoef[41] * pow(coordA, 3) * pow(coordB, 5)
+            + distorsioCoef[42] * pow(coordA, 2) * pow(coordB, 6) + distorsioCoef[43] * coordA * pow(coordB, 7) + distorsioCoef[44] * pow(coordB, 8)
+            + distorsioCoef[45] * pow(coordA, 9) + distorsioCoef[46] * pow(coordA, 8) * coordB
+            + distorsioCoef[47] * pow(coordA, 7) * pow(coordB, 2) + distorsioCoef[48] * pow(coordA, 6) * pow(coordB, 3)
+            + distorsioCoef[49] * pow(coordA, 5) * pow(coordB, 4) + distorsioCoef[50] * pow(coordA, 4) * pow(coordB, 5)
+            + distorsioCoef[51] * pow(coordA, 3) * pow(coordB, 6) + distorsioCoef[52] * pow(coordA, 2) * pow(coordB, 7)
+            + distorsioCoef[53] * coordA * pow(coordB, 8) + distorsioCoef[54] * pow(coordB, 9);
 
 
     return delta;

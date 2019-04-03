@@ -571,7 +571,7 @@ void MLSTask::firstApprox(const Catalog& catalog, const LineData& lineData, Orie
 
 void MLSTask::calculateOldModelPrivate(const Catalog& catalog, const LineData& lineData, OldErrors errors, double& focus, qint32 numP, bool dist, bool save)
 {
-    focus = 32;
+    //focus = 32;
     int clk = 0;
     double mxy=1000;
     double mxy_pr, mx, my;
@@ -1780,7 +1780,7 @@ void MLSTask::findDistCft(int Npow, QVector <double>& x, QVector <double>& y, QV
     }
     xDistV.clear();
     yDistV.clear();
-    constexpr const int maxDistCoef = 21;
+    constexpr const int maxDistCoef = 55;
     for (int i = 0; i < maxDistCoef; i++)
     {
         xDistV.append(0);
